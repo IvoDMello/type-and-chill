@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR" data-visual="ember">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Type &amp; Chill — jogo relaxante de vocabulário em inglês</title>
+  <meta name="description" content="Um jogo de digitação relaxante. Palavras em inglês descem devagar; digite cada uma antes que ela se apague e o significado aparece. Trilha ambiente generativa, quatro climas visuais e um caderno das palavras que você aprendeu.">
+  <meta name="theme-color" content="#160709">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%99%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="bg"></canvas>
+
+  <div id="stage" aria-hidden="true"></div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="brand">
+      <h1>Type <span class="dot">&amp;</span> Chill</h1>
+      <div class="lvl"><span id="lvlPrefix">Nível</span> <span id="lvl">1</span></div>
+    </div>
+    <div class="stats">
+      <div class="stat" id="score"><b>0</b><span>Pontos</span></div>
+      <div class="stat" id="combo"><b>×1</b><span>Sequência</span></div>
+      <div class="stat"><b id="learned">0</b><span>Aprendidas</span></div>
+      <div class="stat"><div class="lives" id="lives"></div><span id="livesLabel">Vidas</span></div>
+      <button class="iconbtn" id="ptBtn" title="Mostrar tradução em português" aria-label="Mostrar tradução em português" aria-pressed="false">PT</button>
+      <button class="iconbtn" id="notebookBtn" title="Abrir o caderno" aria-label="Abrir o caderno">▤</button>
+      <button class="iconbtn" id="musicBtn" title="Música" aria-label="Ligar ou desligar a música">♫</button>
+      <button class="iconbtn" id="sfxBtn" title="Efeitos sonoros" aria-label="Ligar ou desligar os efeitos">♪</button>
+      <button class="iconbtn" id="pauseBtn" title="Pausar" aria-label="Pausar">❚❚</button>
+    </div>
+  </div>
+
+  <!-- Palavras capturadas nesta partida -->
+  <aside id="collected">
+    <p class="ctitle">Palavras capturadas</p>
+    <ul id="clist"></ul>
+  </aside>
+
+  <!-- Cartão de definição -->
+  <div id="defcard" aria-hidden="true">
+    <div class="dw"></div>
+    <div class="dp"></div>
+    <div class="dd"></div>
+    <div class="dt" hidden></div>
+  </div>
+
+  <!-- Início -->
+  <div class="overlay" id="startScreen">
+    <div class="card">
+      <div class="kicker">Um jogo relaxante de vocabulário</div>
+      <h2>Type <span class="dot">&amp;</span> Chill</h2>
+      <p class="lead">Palavras em inglês descem devagar. Digite cada uma antes que ela se apague — e o significado se acende.</p>
+
+      <div class="homestats">
+        <div class="stat"><b id="homeBest">0</b><span>Recorde</span></div>
+        <div class="stat"><b id="homeWords">0</b><span>No caderno</span></div>
+        <div class="stat"><b id="homeMastered">0</b><span>Dominadas</span></div>
+      </div>
+
+      <div class="group">
+        <p class="tlabel">Modo</p>
+        <div id="modeChips" class="chips"></div>
+        <p class="blurb" id="modeBlurb"></p>
+      </div>
+
+      <div class="group" id="vocabConfig">
+        <p class="tlabel">Temas do vocabulário</p>
+        <div id="themeChips" class="chips"></div>
+        <p class="tlabel spaced">Nível <span class="tnote">A2 básico · B1 intermediário · B2 avançado · C1 fluente</span></p>
+        <div id="levelChips" class="chips"></div>
+      </div>
+
+      <div class="group">
+        <p class="tlabel">Clima</p>
+        <div id="visualChips" class="chips"></div>
+      </div>
+
+      <div class="group">
+        <p class="tlabel">Preferências</p>
+        <div id="prefChips" class="chips"></div>
+      </div>
+
+      <button class="btn" id="startBtn">Começar</button>
+      <p class="poolnote" id="poolNote"></p>
+      <button class="btn ghost" id="notebookBtn2">Ver meu caderno</button>
+
+      <details class="howbox">
+        <summary>Como jogar</summary>
+        <div class="how">
+          <div class="row"><span class="n">01</span><span class="t">Comece a <b>digitar</b> — a palavra mais próxima do fundo é capturada primeiro.</span></div>
+          <div class="row"><span class="n">02</span><span class="t">Complete a palavra e ela vira <b>luz</b>: a definição aparece e vai pro seu caderno.</span></div>
+          <div class="row"><span class="n">03</span><span class="t">Encadeie capturas pra crescer a <b>sequência</b>. No clássico, três perdidas encerram a noite.</span></div>
+        </div>
+      </details>
+      <div class="hint">definições em inglês · tradução opcional com <b>PT</b> · trilha ambiente ao vivo</div>
+    </div>
+  </div>
+
+  <!-- Pausa -->
+  <div class="overlay" id="pauseScreen" hidden>
+    <div class="card">
+      <div class="kicker">Pausado</div>
+      <h2 id="pauseTitle">Respire fundo</h2>
+      <p class="lead">As palavras esperam por você. Volte quando quiser.</p>
+      <button class="btn" id="resumeBtn">Continuar</button>
+      <button class="btn ghost" id="endBtn">Encerrar sessão</button>
+      <div class="hint">pressione <b>Esc</b> pra retomar</div>
+    </div>
+  </div>
+
+  <!-- Fim -->
+  <div class="overlay" id="overScreen" hidden>
+    <div class="card">
+      <div class="kicker" id="overKicker">O fogo baixou</div>
+      <h2 id="overTitle">Bela coleta</h2>
+      <div class="finalrow">
+        <div class="stat"><b id="finalScore">0</b><span>Pontos</span></div>
+        <div class="stat"><b id="finalLearned">0</b><span>Aprendidas</span></div>
+        <div class="stat"><b id="bestScore">0</b><span>Recorde</span></div>
+      </div>
+      <ul class="recap" id="recap"></ul>
+      <button class="btn" id="againBtn">Jogar de novo</button>
+      <button class="btn ghost" id="notebookBtn3">Ver meu caderno</button>
+      <button class="btn ghost" id="homeBtn">Voltar ao início</button>
+    </div>
+  </div>
+
+  <!-- Caderno -->
+  <div class="overlay" id="notebookScreen" hidden>
+    <div class="card card-wide">
+      <div class="kicker">Caderno</div>
+      <h2>Suas palavras</h2>
+      <div class="homestats" id="nbStats"></div>
+
+      <div class="nbfilters">
+        <input type="search" id="nbSearch" placeholder="Buscar palavra, definição ou tradução" aria-label="Buscar no caderno">
+        <select id="nbTheme" aria-label="Filtrar por tema"></select>
+        <select id="nbLevel" aria-label="Filtrar por nível">
+          <option value="">Todos os níveis</option>
+          <option value="A2">A2</option>
+          <option value="B1">B1</option>
+          <option value="B2">B2</option>
+          <option value="C1">C1</option>
+        </select>
+        <select id="nbStatus" aria-label="Filtrar por situação">
+          <option value="">Todas</option>
+          <option value="learning">Ainda revisando</option>
+          <option value="mastered">Dominadas</option>
+          <option value="weak">Já escaparam</option>
+        </select>
+      </div>
+
+      <ul id="nbList" class="nblist"></ul>
+      <p class="empty" id="nbEmpty" hidden></p>
+
+      <div class="nbactions">
+        <button class="btn" id="nbPractice">Revisar as fracas</button>
+        <button class="btn ghost" id="nbClose">Voltar</button>
+        <button class="btn ghost danger" id="nbClear">Apagar caderno</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/words.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/themes.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/notebook.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

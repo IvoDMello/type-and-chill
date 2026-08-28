@@ -1,0 +1,150 @@
+/* Type & Chill — paletas.
+ *
+ * Cada bloco html[data-visual="..."] é um clima completo. O jogo troca o
+ * atributo data-visual no <html> (veja themes.js) e a interface inteira muda.
+ *
+ * Para criar um clima novo: copie um bloco, troque a chave e as cores, e
+ * adicione a entrada correspondente em js/themes.js (label, swatch, bg, audio).
+ * Todo o resto do CSS lê só estas variáveis — nada de cor solta em style.css.
+ */
+
+:root {
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+}
+
+/* ---------- Brasa: o clima original, quente e escuro ---------- */
+html[data-visual="ember"] {
+  --bg-layers:
+    radial-gradient(1200px 760px at 50% 118%, rgba(255,106,61,0.30), transparent 60%),
+    radial-gradient(900px 620px at 82% -6%, rgba(255,77,61,0.20), transparent 62%),
+    radial-gradient(760px 560px at 12% 6%, rgba(255,157,77,0.12), transparent 60%),
+    linear-gradient(170deg, #2a0e0d 0%, #160709 52%, #0c0405 100%);
+  --text: #fbeee4;
+  --muted: #d0a48c;
+  --faint: #a3766a;
+  --accent: #ff9d4d;
+  --accent-2: #ff6a3d;
+  --hot: #ff4d3d;
+  --gold: #ffd08a;
+  --panel: rgba(48,18,14,0.62);
+  --border: rgba(255,150,90,0.18);
+  --border-hi: rgba(255,157,77,0.5);
+  --word-bg: rgba(22,7,9,0.42);
+  --word-border: rgba(255,150,90,0.14);
+  --word-bg-on: rgba(60,20,12,0.72);
+  --word-border-on: rgba(255,157,77,0.6);
+  --word-glow: rgba(255,106,61,0.30);
+  --letter: #f0cdb4;
+  --letter-next: #fff6ee;
+  --overlay: radial-gradient(900px 720px at 50% 32%, rgba(42,14,13,0.72), rgba(12,4,5,0.92));
+  --card: linear-gradient(165deg, rgba(66,24,16,0.92), rgba(24,9,9,0.95));
+  --card-shadow: 0 24px 80px rgba(0,0,0,0.55);
+  --field: rgba(22,7,9,0.5);
+  --btn-a: #ffb266;
+  --btn-b: #ff6a3d;
+  --btn-fg: #1a0705;
+  --btn-glow: rgba(255,106,61,0.38);
+}
+
+/* ---------- Noite lo-fi: roxo e azul, poeira caindo ---------- */
+html[data-visual="lofi"] {
+  --bg-layers:
+    radial-gradient(1100px 720px at 50% 116%, rgba(167,139,250,0.24), transparent 62%),
+    radial-gradient(880px 600px at 84% -6%, rgba(125,211,252,0.16), transparent 62%),
+    radial-gradient(720px 520px at 10% 4%, rgba(244,114,182,0.12), transparent 60%),
+    linear-gradient(170deg, #1a1130 0%, #0e0a1a 54%, #06040d 100%);
+  --text: #ece7fb;
+  --muted: #b3a8d6;
+  --faint: #8177ab;
+  --accent: #a78bfa;
+  --accent-2: #7dd3fc;
+  --hot: #f472b6;
+  --gold: #fcd34d;
+  --panel: rgba(30,22,54,0.62);
+  --border: rgba(167,139,250,0.20);
+  --border-hi: rgba(167,139,250,0.55);
+  --word-bg: rgba(14,10,26,0.45);
+  --word-border: rgba(167,139,250,0.16);
+  --word-bg-on: rgba(46,32,84,0.75);
+  --word-border-on: rgba(167,139,250,0.62);
+  --word-glow: rgba(125,211,252,0.28);
+  --letter: #cfc4f0;
+  --letter-next: #ffffff;
+  --overlay: radial-gradient(900px 720px at 50% 32%, rgba(26,17,48,0.74), rgba(8,6,16,0.93));
+  --card: linear-gradient(165deg, rgba(48,33,86,0.92), rgba(16,11,30,0.95));
+  --card-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  --field: rgba(14,10,26,0.55);
+  --btn-a: #c4b5fd;
+  --btn-b: #8b5cf6;
+  --btn-fg: #140e26;
+  --btn-glow: rgba(139,92,246,0.40);
+}
+
+/* ---------- Chuva: azul frio, gotas descendo ---------- */
+html[data-visual="rain"] {
+  --bg-layers:
+    radial-gradient(1100px 720px at 50% 118%, rgba(56,189,248,0.20), transparent 62%),
+    radial-gradient(900px 620px at 80% -6%, rgba(103,232,249,0.14), transparent 62%),
+    radial-gradient(700px 520px at 12% 6%, rgba(94,234,212,0.10), transparent 60%),
+    linear-gradient(170deg, #0d2030 0%, #061019 55%, #03080d 100%);
+  --text: #e6f6fb;
+  --muted: #9fc3d3;
+  --faint: #6f93a5;
+  --accent: #67e8f9;
+  --accent-2: #38bdf8;
+  --hot: #5eead4;
+  --gold: #a5f3fc;
+  --panel: rgba(12,32,46,0.62);
+  --border: rgba(103,232,249,0.18);
+  --border-hi: rgba(103,232,249,0.5);
+  --word-bg: rgba(6,16,25,0.45);
+  --word-border: rgba(103,232,249,0.15);
+  --word-bg-on: rgba(14,45,64,0.75);
+  --word-border-on: rgba(103,232,249,0.58);
+  --word-glow: rgba(56,189,248,0.28);
+  --letter: #bfe4ef;
+  --letter-next: #ffffff;
+  --overlay: radial-gradient(900px 720px at 50% 32%, rgba(10,28,42,0.74), rgba(3,9,14,0.93));
+  --card: linear-gradient(165deg, rgba(14,44,64,0.92), rgba(5,15,23,0.95));
+  --card-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  --field: rgba(6,16,25,0.55);
+  --btn-a: #a5f3fc;
+  --btn-b: #22b8d4;
+  --btn-fg: #04141d;
+  --btn-glow: rgba(34,184,212,0.38);
+}
+
+/* ---------- Manhã: claro, para jogar de dia sem cansar a vista ---------- */
+html[data-visual="dawn"] {
+  --bg-layers:
+    radial-gradient(1100px 720px at 50% 118%, rgba(224,122,95,0.20), transparent 62%),
+    radial-gradient(900px 620px at 82% -8%, rgba(212,163,90,0.20), transparent 62%),
+    radial-gradient(720px 520px at 10% 4%, rgba(233,196,168,0.28), transparent 60%),
+    linear-gradient(170deg, #fdf1e3 0%, #fbe6d5 58%, #f6dcc8 100%);
+  --text: #3b2b26;
+  --muted: #7a5f53;
+  --faint: #a58a7c;
+  --accent: #d1603f;
+  --accent-2: #b8863a;
+  --hot: #c25b46;
+  --gold: #a97c2f;
+  --panel: rgba(255,252,248,0.72);
+  --border: rgba(184,98,72,0.24);
+  --border-hi: rgba(184,98,72,0.55);
+  --word-bg: rgba(255,252,248,0.66);
+  --word-border: rgba(184,98,72,0.20);
+  --word-bg-on: rgba(255,255,255,0.94);
+  --word-border-on: rgba(184,98,72,0.62);
+  --word-glow: rgba(224,122,95,0.28);
+  --letter: #6b4c42;
+  --letter-next: #2a1c17;
+  --overlay: radial-gradient(900px 720px at 50% 32%, rgba(253,241,227,0.84), rgba(244,220,199,0.94));
+  --card: linear-gradient(165deg, rgba(255,253,250,0.96), rgba(251,235,221,0.96));
+  --card-shadow: 0 20px 60px rgba(120,72,48,0.18);
+  --field: rgba(255,255,255,0.8);
+  --btn-a: #e8926f;
+  --btn-b: #c8543a;
+  --btn-fg: #fff6f0;
+  --btn-glow: rgba(200,84,58,0.30);
+}
