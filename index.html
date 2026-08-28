@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Type &amp; Chill — jogo relaxante de vocabulário em inglês</title>
-  <meta name="description" content="Um jogo de digitação relaxante. Palavras em inglês descem devagar; digite cada uma antes que ela se apague e o significado aparece. Trilha ambiente generativa, quatro climas visuais e um caderno das palavras que você aprendeu.">
+  <meta name="description" content="Um jogo de digitação relaxante. Palavras em inglês descem devagar; digite cada uma antes que ela se apague e o significado aparece. Trilha ambiente generativa, quatro climas visuais, caderno com revisão espaçada e desafios para competir com amigos.">
   <meta name="theme-color" content="#160709">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%99%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,11 +23,13 @@
     <div class="brand">
       <h1>Type <span class="dot">&amp;</span> Chill</h1>
       <div class="lvl"><span id="lvlPrefix">Nível</span> <span id="lvl">1</span></div>
+      <div id="ghost" class="ghost" hidden></div>
     </div>
     <div class="stats">
       <div class="stat" id="score"><b>0</b><span>Pontos</span></div>
       <div class="stat" id="combo"><b>×1</b><span>Sequência</span></div>
       <div class="stat"><b id="learned">0</b><span>Aprendidas</span></div>
+      <div class="stat"><b id="wpm">0</b><span>PPM</span></div>
       <div class="stat"><div class="lives" id="lives"></div><span id="livesLabel">Vidas</span></div>
       <button class="iconbtn" id="ptBtn" title="Mostrar tradução em português" aria-label="Mostrar tradução em português" aria-pressed="false">PT</button>
       <button class="iconbtn" id="notebookBtn" title="Abrir o caderno" aria-label="Abrir o caderno">▤</button>
@@ -44,7 +46,7 @@
   </aside>
 
   <!-- Cartão de definição -->
-  <div id="defcard" aria-hidden="true">
+  <div id="defcard" aria-live="polite">
     <div class="dw"></div>
     <div class="dp"></div>
     <div class="dd"></div>
@@ -60,9 +62,17 @@
 
       <div class="homestats">
         <div class="stat"><b id="homeBest">0</b><span>Recorde</span></div>
-        <div class="stat"><b id="homeWords">0</b><span>No caderno</span></div>
+        <div class="stat"><b id="homeStreak">0</b><span>Dias seguidos</span></div>
+        <div class="stat"><b id="homeDue">0</b><span>Revisar hoje</span></div>
         <div class="stat"><b id="homeMastered">0</b><span>Dominadas</span></div>
       </div>
+
+      <div class="goal">
+        <div class="bartrack"><i class="bardone" id="goalFill"></i></div>
+        <p class="goaltext" id="goalText"></p>
+      </div>
+
+      <p class="warn" id="storageWarn" hidden>Este navegador está bloqueando o armazenamento local: o caderno vale só até fechar a aba.</p>
 
       <div class="group">
         <p class="tlabel">Modo</p>
@@ -89,16 +99,21 @@
 
       <button class="btn" id="startBtn">Começar</button>
       <p class="poolnote" id="poolNote"></p>
-      <button class="btn ghost" id="notebookBtn2">Ver meu caderno</button>
+      <div class="btnrow">
+        <button class="btn ghostbtn" id="challengeBtn">Jogar com amigos</button>
+        <button class="btn ghostbtn" id="notebookBtn2">Meu caderno</button>
+      </div>
 
       <details class="howbox">
         <summary>Como jogar</summary>
         <div class="how">
           <div class="row"><span class="n">01</span><span class="t">Comece a <b>digitar</b> — a palavra mais próxima do fundo é capturada primeiro.</span></div>
           <div class="row"><span class="n">02</span><span class="t">Complete a palavra e ela vira <b>luz</b>: a definição aparece e vai pro seu caderno.</span></div>
-          <div class="row"><span class="n">03</span><span class="t">Encadeie capturas pra crescer a <b>sequência</b>. No clássico, três perdidas encerram a noite.</span></div>
+          <div class="row"><span class="n">03</span><span class="t">O caderno reagenda cada palavra: você revê pouco antes de esquecer.</span></div>
+          <div class="row"><span class="n">04</span><span class="t">Em <b>Jogar com amigos</b>, um código faz todo mundo receber a mesma partida.</span></div>
         </div>
       </details>
+
       <div class="hint">definições em inglês · tradução opcional com <b>PT</b> · trilha ambiente ao vivo</div>
     </div>
   </div>
@@ -108,9 +123,9 @@
     <div class="card">
       <div class="kicker">Pausado</div>
       <h2 id="pauseTitle">Respire fundo</h2>
-      <p class="lead">As palavras esperam por você. Volte quando quiser.</p>
+      <p class="lead" id="pauseNote">As palavras esperam por você. Volte quando quiser.</p>
       <button class="btn" id="resumeBtn">Continuar</button>
-      <button class="btn ghost" id="endBtn">Encerrar sessão</button>
+      <button class="btn ghostbtn" id="endBtn">Encerrar sessão</button>
       <div class="hint">pressione <b>Esc</b> pra retomar</div>
     </div>
   </div>
@@ -123,12 +138,24 @@
       <div class="finalrow">
         <div class="stat"><b id="finalScore">0</b><span>Pontos</span></div>
         <div class="stat"><b id="finalLearned">0</b><span>Aprendidas</span></div>
+        <div class="stat"><b id="finalWpm">0</b><span>PPM</span></div>
+        <div class="stat"><b id="finalAcc">0%</b><span>Precisão</span></div>
         <div class="stat"><b id="bestScore">0</b><span>Recorde</span></div>
       </div>
+
+      <div id="overChallenge" class="chbox" hidden>
+        <p class="tlabel">Placar do desafio <span class="code" id="overCode"></span></p>
+        <ul class="chboard" id="overBoard"></ul>
+        <button class="btn ghostbtn" id="overShare">Copiar meu resultado</button>
+      </div>
+
       <ul class="recap" id="recap"></ul>
       <button class="btn" id="againBtn">Jogar de novo</button>
-      <button class="btn ghost" id="notebookBtn3">Ver meu caderno</button>
-      <button class="btn ghost" id="homeBtn">Voltar ao início</button>
+      <div class="btnrow">
+        <button class="btn ghostbtn" id="challengeBtn2">Desafios</button>
+        <button class="btn ghostbtn" id="notebookBtn3">Meu caderno</button>
+        <button class="btn ghostbtn" id="homeBtn">Início</button>
+      </div>
     </div>
   </div>
 
@@ -138,6 +165,7 @@
       <div class="kicker">Caderno</div>
       <h2>Suas palavras</h2>
       <div class="homestats" id="nbStats"></div>
+      <div class="bars" id="nbProgress"></div>
 
       <div class="nbfilters">
         <input type="search" id="nbSearch" placeholder="Buscar palavra, definição ou tradução" aria-label="Buscar no caderno">
@@ -151,6 +179,7 @@
         </select>
         <select id="nbStatus" aria-label="Filtrar por situação">
           <option value="">Todas</option>
+          <option value="due">Revisar hoje</option>
           <option value="learning">Ainda revisando</option>
           <option value="mastered">Dominadas</option>
           <option value="weak">Já escaparam</option>
@@ -162,17 +191,89 @@
 
       <div class="nbactions">
         <button class="btn" id="nbPractice">Revisar as fracas</button>
-        <button class="btn ghost" id="nbClose">Voltar</button>
-        <button class="btn ghost danger" id="nbClear">Apagar caderno</button>
+        <button class="btn ghostbtn" id="nbExport">Baixar CSV</button>
+        <button class="btn ghostbtn" id="nbClose">Voltar</button>
+        <button class="btn ghostbtn danger" id="nbClear">Apagar caderno</button>
       </div>
     </div>
   </div>
 
+  <!-- Desafios -->
+  <div class="overlay" id="challengeScreen" hidden>
+    <div class="card card-wide">
+      <div class="kicker">Jogar com amigos</div>
+      <h2 id="chTitle">Escolha um desafio</h2>
+      <p class="lead">Um código faz todo mundo receber as mesmas palavras, na mesma ordem, na mesma velocidade. Sem conta, sem servidor — é só colar no grupo.</p>
+
+      <div class="chgrid">
+        <div class="chcard">
+          <p class="tlabel">Desafio do dia</p>
+          <p class="blurb">A semente vem da data: hoje todo mundo joga a mesma partida.</p>
+          <button class="btn ghostbtn" id="chDaily">Carregar o de hoje</button>
+        </div>
+        <div class="chcard">
+          <p class="tlabel">Criar desafio</p>
+          <p class="blurb">Gera um código com os seus temas e níveis atuais.</p>
+          <button class="btn ghostbtn" id="chCreate">Criar</button>
+        </div>
+        <div class="chcard">
+          <p class="tlabel">Entrar com um código</p>
+          <p class="blurb">Cole o código do desafio ou o resultado de um amigo.</p>
+          <div class="inputrow">
+            <input type="text" id="chJoinInput" placeholder="TC1-XXXXX-XXXX" aria-label="Código do desafio">
+            <button class="btn ghostbtn" id="chJoin">Abrir</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chcurrent">
+        <p class="tlabel">Código <span class="code" id="chCode">—</span> <span class="chday" id="chDay" hidden></span></p>
+        <p class="blurb" id="chRules"></p>
+        <div class="btnrow">
+          <button class="btn" id="chPlay" disabled>Jogar este desafio</button>
+          <button class="btn ghostbtn" id="chCopy" disabled>Copiar código</button>
+        </div>
+      </div>
+
+      <p class="tlabel spaced">Placar</p>
+      <ul class="chboard" id="chBoard"></ul>
+      <p class="empty" id="chBoardEmpty"></p>
+
+      <div class="inputrow">
+        <input type="text" id="chFriendInput" placeholder="Cole aqui o resultado de um amigo (TC1R-...)" aria-label="Resultado de um amigo">
+        <button class="btn ghostbtn" id="chAddFriend">Adicionar</button>
+      </div>
+      <div class="inputrow">
+        <input type="text" id="chName" maxlength="12" placeholder="Seu apelido no placar" aria-label="Seu apelido">
+      </div>
+
+      <p class="chnote" id="chNote"></p>
+      <button class="btn ghostbtn" id="chClose">Voltar</button>
+    </div>
+  </div>
+
+  <!-- Erro fatal na inicialização -->
+  <div class="overlay" id="fatalScreen" hidden>
+    <div class="card">
+      <div class="kicker">Algo quebrou</div>
+      <h2>O jogo não conseguiu iniciar</h2>
+      <p class="lead">Recarregue a página. Se continuar, o detalhe abaixo ajuda a achar o problema.</p>
+      <p class="poolnote" id="fatalMsg"></p>
+    </div>
+  </div>
+
   <script src="js/words.js"></script>
+  <script src="js/core/rng.js"></script>
+  <script src="js/core/srs.js"></script>
+  <script src="js/core/scoring.js"></script>
+  <script src="js/core/challenge.js"></script>
+  <script src="js/core/wordbank.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/themes.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/speech.js"></script>
   <script src="js/notebook.js"></script>
+  <script src="js/challengeui.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>

@@ -103,6 +103,7 @@ window.TCBackdrop = (function () {
   var canvas = null, ctx = null;
   var W = 0, H = 0;
   var bits = [], puffs = [];
+  var quality = 1;
   var spec = window.TC_VISUALS.ember.bg;
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
@@ -123,9 +124,18 @@ window.TCBackdrop = (function () {
   }
   function seed() {
     bits = [];
-    var n = Math.round(W * H / spec.density);
+    var n = Math.round((W * H / spec.density) * quality);
     if (reduce) n = Math.round(n / 3);
     for (var i = 0; i < n; i++) bits.push(makeBit(true));
+  }
+
+  /* O jogo mede o FPS e chama isto quando o quadro fica caro: menos
+   * partículas em máquina fraca, sem mudar nada do resto. */
+  function setQuality(q) {
+    var next = Math.max(0.2, Math.min(1, q));
+    if (next === quality) return;
+    quality = next;
+    seed();
   }
   function makeBit(anywhere) {
     return {
@@ -196,7 +206,7 @@ window.TCBackdrop = (function () {
   function clearPuffs() { puffs = []; }
 
   return {
-    attach: attach, resize: resize, setVisual: setVisual,
+    attach: attach, resize: resize, setVisual: setVisual, setQuality: setQuality,
     draw: draw, burst: burst, clearPuffs: clearPuffs
   };
 })();

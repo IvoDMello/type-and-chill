@@ -264,11 +264,11 @@ body {
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
 .btn[disabled] { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none }
 .btn + .btn { margin-top: 10px }
-.btn.ghost {
+.btn.ghostbtn {
   background: transparent; color: var(--muted);
   border: 1px solid var(--border); box-shadow: none; padding: 13px 26px;
 }
-.btn.ghost:hover { color: var(--text); border-color: var(--border-hi); transform: none }
+.btn.ghostbtn:hover { color: var(--text); border-color: var(--border-hi); transform: none }
 .btn.danger:hover { color: var(--hot); border-color: var(--hot) }
 
 .poolnote {
@@ -356,4 +356,118 @@ body {
   .word.shake .inner { animation: none }
   #clist li { animation: none }
   .btn:hover { transform: none }
+}
+
+
+/* ---------- Ofensiva e meta diária ---------- */
+.goal { max-width: 380px; margin: 0 auto 20px }
+.bartrack {
+  position: relative; height: 7px; border-radius: 999px;
+  background: var(--field); border: 1px solid var(--border); overflow: hidden;
+}
+.bartrack > i {
+  position: absolute; inset: 0 auto 0 0; display: block; border-radius: 999px;
+  transition: width .5s cubic-bezier(.2,.9,.3,1);
+}
+.barseen { background: var(--border-hi); opacity: .45 }
+.bardone { background: linear-gradient(90deg, var(--btn-a), var(--btn-b)) }
+.goaltext {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint); margin: 9px 0 0;
+}
+.warn {
+  font-family: var(--mono); font-size: .68rem; line-height: 1.5; color: var(--hot);
+  border: 1px solid var(--border); border-radius: 11px; padding: 10px 13px;
+  margin: 0 auto 20px; max-width: 420px;
+}
+
+/* ---------- Fantasma do desafio, no HUD ---------- */
+.ghost {
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--faint); margin-top: 6px;
+}
+.ghost.beaten { color: var(--accent) }
+
+/* ---------- Linhas de botões ---------- */
+.btnrow { display: flex; flex-wrap: wrap; gap: 9px; justify-content: center; margin-top: 10px }
+.btnrow .btn + .btn { margin-top: 0 }
+
+/* ---------- Barras de progresso do caderno ---------- */
+.bars {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px; margin: 0 auto 20px; max-width: 560px;
+}
+.bar { text-align: left }
+.barhead {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 6px;
+}
+.barhead span:first-child { color: var(--muted) }
+
+/* ---------- Desafios ---------- */
+.chgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px; margin: 0 0 20px; text-align: left;
+}
+.chcard {
+  background: var(--field); border: 1px solid var(--border); border-radius: 14px;
+  padding: 14px 15px; display: flex; flex-direction: column; gap: 8px;
+}
+.chcard .tlabel { margin: 0 }
+.chcard .blurb { margin: 0; font-size: .86rem; flex: 1 }
+.chcard .btn { width: 100%; padding: 11px 14px; margin-top: 2px }
+.chcurrent {
+  border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+  margin: 0 0 18px; background: var(--field);
+}
+.chcurrent .tlabel { margin-bottom: 8px }
+.chcurrent .blurb { margin: 0 0 12px; font-size: .86rem }
+.code {
+  font-family: var(--mono); font-weight: 700; letter-spacing: .08em;
+  color: var(--accent); text-transform: none;
+}
+.chday {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .12em;
+  color: var(--gold); margin-left: 8px;
+}
+.inputrow { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap }
+.inputrow input {
+  flex: 1 1 200px; min-width: 0;
+  font-family: var(--mono); font-size: .78rem; color: var(--text);
+  background: var(--field); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 12px;
+}
+.inputrow input:focus { outline: none; border-color: var(--border-hi) }
+.inputrow input::placeholder { color: var(--faint) }
+.inputrow .btn { padding: 11px 18px; margin-top: 0 }
+
+.chboard { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 7px }
+.chrow {
+  display: flex; align-items: baseline; gap: 10px; text-align: left;
+  background: var(--field); border: 1px solid var(--border);
+  border-radius: 11px; padding: 10px 13px;
+}
+.chrow.is-me { border-color: var(--border-hi); background: var(--word-bg-on) }
+.chpos { font-family: var(--mono); font-size: .68rem; color: var(--faint); min-width: 26px }
+.chname { font-family: var(--mono); font-weight: 700; font-size: .92rem; color: var(--accent) }
+.chmeta { font-family: var(--mono); font-size: .64rem; color: var(--faint); margin-left: auto }
+.chscore {
+  font-family: var(--mono); font-weight: 700; font-size: 1.05rem;
+  font-variant-numeric: tabular-nums; min-width: 52px; text-align: right;
+}
+.chbox { margin: 0 0 20px }
+.chbox .tlabel { text-align: left }
+.chnote {
+  font-family: var(--mono); font-size: .68rem; line-height: 1.5;
+  color: var(--muted); min-height: 1.2em; margin: 0 0 12px;
+}
+.chnote.is-error { color: var(--hot) }
+
+/* ---------- Caderno: palavra vencida ---------- */
+.nbrow.is-due { border-left: 3px solid var(--accent) }
+
+@media (max-width: 620px) {
+  .chgrid { grid-template-columns: 1fr }
+  .finalrow { gap: 16px; flex-wrap: wrap }
 }

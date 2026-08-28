@@ -9,9 +9,12 @@
  * Quer adicionar palavras? Basta incluir novas linhas em qualquer tema,
  * ou criar um tema novo seguindo o mesmo formato. O jogo lê tudo daqui.
  */
-window.WORD_LEVELS = ["A2", "B1", "B2", "C1"];
+(function (root) {
+  "use strict";
 
-window.WORD_THEMES = {
+var WORD_LEVELS = ["A2", "B1", "B2", "C1"];
+
+var WORD_THEMES = {
 
   everyday: {
     label: "Dia a dia",
@@ -527,3 +530,10 @@ window.WORD_THEMES = {
   }
 
 };
+
+  root.WORD_LEVELS = WORD_LEVELS;
+  root.WORD_THEMES = WORD_THEMES;
+  if (typeof module === "object" && module.exports) {
+    module.exports = { WORD_LEVELS: WORD_LEVELS, WORD_THEMES: WORD_THEMES };
+  }
+})(typeof window !== "undefined" ? window : globalThis);

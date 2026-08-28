@@ -1,0 +1,15 @@
+{
+  "name": "type-and-chill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jogo relaxante de digitação e vocabulário em inglês. O jogo em si roda sem build — isto aqui é só o ferramental de teste.",
+  "scripts": {
+    "serve": "node tools/serve.js",
+    "test": "node --test \"tests/unit/**/*.test.js\"",
+    "test:e2e": "node --test --test-timeout=180000 \"tests/e2e/**/*.test.js\"",
+    "test:all": "npm test && npm run test:e2e"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.10.0"
+  }
+}
