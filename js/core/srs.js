@@ -89,6 +89,48 @@
     return Math.ceil(((state.due || 0) - (now || Date.now())) / DAY);
   }
 
+  /* Fragilidade: o quanto a palavra ainda escapa de você.
+   *
+   * O agendamento diz *quando* rever; isto diz *o que mais dói*. É o que
+   * alimenta a lista "as que te pegam" e a fila do modo Deck, onde a ordem não
+   * é a data e sim o histórico de tropeços — quem caiu mais, e mais recente,
+   * volta antes.
+   *
+   * Recebe { srs, misses, hits, typos, avgMs } e devolve um número ≥ 0.
+   */
+  function fragility(e, now) {
+    if (!e) return 0;
+    var t = now || Date.now();
+    var s = e.srs || null;
+    var hits = e.hits || 0;
+    var score = 0;
+
+    score += (e.misses || 0) * 3;                       // deixou cair: o pior sinal
+    score += hits ? Math.min(3, (e.typos || 0) / hits) * 1.5 : 0;
+    score += (EASE_START - ((s && s.ease) || EASE_START)) * 2;
+    score += (s && s.lapses ? s.lapses : 0) * 0.8;
+    if (isDue(s, t)) {
+      score += 1;
+      var late = -daysUntilDue(s, t);
+      if (late > 0) score += Math.min(10, late) * 0.2;   // atraso conta, mas satura
+    }
+    // digitar devagar é hesitação: acima de 4s por palavra já pesa
+    if (e.avgMs) score += Math.min(2, Math.max(0, (e.avgMs - 4000) / 4000));
+    score -= Math.min(4, ((s && s.reps) || 0) * 0.5);   // acertos seguidos aliviam
+    return Math.max(0, Math.round(score * 100) / 100);
+  }
+
+  /* Fila do Deck: as mais frágeis primeiro. Empate desempata pela mais antiga,
+   * para nunca deixar uma palavra velha presa no fim da fila. */
+  function sortByFragility(entries, now) {
+    var t = now || Date.now();
+    return entries.slice().sort(function (a, b) {
+      var fa = fragility(a, t), fb = fragility(b, t);
+      if (fa !== fb) return fb - fa;
+      return (a.last || 0) - (b.last || 0);
+    });
+  }
+
   /* Ordena a fila de revisão: as atrasadas primeiro, depois as mais frágeis.
    * Recebe entradas com { srs, misses, hits }. */
   function sortForReview(entries, now) {
@@ -112,6 +154,8 @@
     quality: quality,
     fresh: fresh,
     review: review,
+    fragility: fragility,
+    sortByFragility: sortByFragility,
     isMature: isMature,
     isDue: isDue,
     daysUntilDue: daysUntilDue,

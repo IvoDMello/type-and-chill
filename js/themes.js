@@ -90,6 +90,28 @@ window.TC_VISUALS = {
       scale: [392.00, 440.00, 523.25, 587.33, 659.25, 783.99],
       pad: "triangle", cutoff: 900, rain: 0
     }
+  },
+
+  /* Aurora: o clima do último marco (900 palavras digitadas). Partículas
+     lentas subindo e uma harmonia mais aberta que a dos outros três. */
+  aurora: {
+    label: "Aurora",
+    swatch: ["#5eead4", "#07231f"],
+    bg: {
+      kind: "dot", dir: -1,              // luz subindo devagar
+      colors: ["94,234,212", "129,140,248"],
+      speed: [3, 10], size: [0.5, 2.3], sway: 18, density: 14000, alpha: [0.10, 0.52]
+    },
+    audio: {
+      chords: [
+        [146.83, 185.00, 220.00],        // D
+        [164.81, 196.00, 246.94],        // Em
+        [110.00, 164.81, 196.00],        // A5
+        [196.00, 246.94, 293.66]         // G
+      ],
+      scale: [369.99, 440.00, 493.88, 554.37, 659.25, 739.99],
+      pad: "sine", cutoff: 620, rain: 0
+    }
   }
 
 };
@@ -105,7 +127,16 @@ window.TCBackdrop = (function () {
   var bits = [], puffs = [];
   var quality = 1;
   var spec = window.TC_VISUALS.ember.bg;
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  var systemReduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches);
+  var reduce = systemReduce;
+
+  /* Qualidade dos gráficos.
+   *
+   * "auto" é o padrão e deixa o jogo medir o FPS e aliviar sozinho em máquina
+   * fraca. Escolher um nível no menu de opções desliga essa medição: quem
+   * mandou foi a pessoa, e o jogo não pode ficar mexendo por cima. */
+  var QUALITY_LEVELS = { auto: 1, high: 1, medium: 0.6, low: 0.3, off: 0 };
+  var qualityMode = "auto";
 
   function rand(range) { return range[0] + Math.random() * (range[1] - range[0]); }
 
@@ -124,6 +155,7 @@ window.TCBackdrop = (function () {
   }
   function seed() {
     bits = [];
+    if (quality <= 0) return;                  // partículas desligadas de vez
     var n = Math.round((W * H / spec.density) * quality);
     if (reduce) n = Math.round(n / 3);
     for (var i = 0; i < n; i++) bits.push(makeBit(true));
@@ -132,11 +164,31 @@ window.TCBackdrop = (function () {
   /* O jogo mede o FPS e chama isto quando o quadro fica caro: menos
    * partículas em máquina fraca, sem mudar nada do resto. */
   function setQuality(q) {
+    if (qualityMode !== "auto") return;        // no modo manual, o FPS não manda
     var next = Math.max(0.2, Math.min(1, q));
     if (next === quality) return;
     quality = next;
     seed();
   }
+
+  /* Nível escolhido no menu. Devolve o modo em vigor, para a UI confirmar. */
+  function setQualityMode(mode) {
+    if (!Object.prototype.hasOwnProperty.call(QUALITY_LEVELS, mode)) mode = "auto";
+    qualityMode = mode;
+    quality = QUALITY_LEVELS[mode];
+    seed();
+    return qualityMode;
+  }
+  function isAdaptive() { return qualityMode === "auto"; }
+
+  /* Movimento: "auto" segue o sistema, "reduced" força calma, "full" ignora a
+   * preferência do sistema (para quem quer o efeito mesmo assim). */
+  function setMotion(mode) {
+    reduce = mode === "reduced" ? true : (mode === "full" ? false : systemReduce);
+    seed();
+    return reduce;
+  }
+  function isReduced() { return reduce; }
   function makeBit(anywhere) {
     return {
       x: Math.random() * W,
@@ -193,7 +245,7 @@ window.TCBackdrop = (function () {
   }
 
   function burst(x, y) {
-    if (reduce) return;
+    if (reduce || quality <= 0) return;
     for (var i = 0; i < 16; i++) {
       var ang = Math.random() * 6.283, sp = 40 + Math.random() * 160;
       puffs.push({
@@ -207,6 +259,8 @@ window.TCBackdrop = (function () {
 
   return {
     attach: attach, resize: resize, setVisual: setVisual, setQuality: setQuality,
+    setQualityMode: setQualityMode, isAdaptive: isAdaptive,
+    setMotion: setMotion, isReduced: isReduced,
     draw: draw, burst: burst, clearPuffs: clearPuffs
   };
 })();

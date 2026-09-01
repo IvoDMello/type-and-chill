@@ -1,0 +1,27 @@
+{
+  "name": "Type & Chill",
+  "short_name": "Type & Chill",
+  "description": "Jogo relaxante de digitação e vocabulário em inglês, com caderno de revisão espaçada.",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#160709",
+  "theme_color": "#160709",
+  "categories": ["games", "education"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

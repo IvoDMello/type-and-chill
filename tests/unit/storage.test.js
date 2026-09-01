@@ -132,7 +132,7 @@ test("progress cruza o caderno com o banco por tema e por nível", () => {
   assert.strictEqual(p.byLevel.A2.seen, 1);
 });
 
-test("ofensiva: dias seguidos somam, buraco no meio zera", () => {
+test("ofensiva: dias seguidos somam, buraco no meio congela em vez de zerar", () => {
   const s = novoStore();
   s.touchDay(T0);
   assert.strictEqual(s.stats.streak, 1);
@@ -147,9 +147,16 @@ test("ofensiva: dias seguidos somam, buraco no meio zera", () => {
   assert.strictEqual(s.stats.streak, 3);
   assert.strictEqual(s.stats.bestStreak, 3);
 
+  // O documento de design pede uma ofensiva "que não quebra com raiva":
+  // faltar não pode apagar semanas de hábito, senão a pessoa não volta.
   s.touchDay(T0 + 5 * DAY);
-  assert.strictEqual(s.stats.streak, 1, "pulou dias, a ofensiva recomeça");
+  assert.strictEqual(s.stats.streak, 3, "pulou dias, a ofensiva congela onde estava");
+  assert.strictEqual(s.stats.freezes, 1, "o congelamento fica registrado");
+  assert.ok(s.streakFrozenToday(T0 + 5 * DAY), "a tela inicial precisa poder avisar");
   assert.strictEqual(s.stats.bestStreak, 3, "o recorde de ofensiva não se perde");
+
+  s.touchDay(T0 + 6 * DAY);
+  assert.strictEqual(s.stats.streak, 4, "o dia seguinte retoma de onde parou");
 });
 
 test("virar o dia zera a contagem da meta diária", () => {
@@ -308,4 +315,131 @@ test("apagar o caderno não apaga preferências nem recordes", () => {
   s.clearNotebook();
   assert.strictEqual(s.counts().total, 0);
   assert.strictEqual(s.stats.best, 500);
+});
+
+/* ---------- Estatística por palavra ----------
+ * O documento pede quatro números por palavra: quantas vezes apareceu,
+ * quantas foram capturadas, quanto tempo leva para digitar e quantas
+ * escaparam. Os três primeiros são novos na v3. */
+
+test("aparecer na tela não coloca a palavra no caderno", () => {
+  // senão cada game over deixaria para trás as palavras que ainda caíam,
+  // todas com zero acerto e todas na fila de revisão do dia seguinte
+  const s = novoStore();
+  s.recordSeen(palavra("harbor"), { now: T0 });
+  assert.strictEqual(s.counts(T0).total, 0);
+  assert.strictEqual(s.entryFor("harbor"), null);
+});
+
+test("recordSeen conta as aparições de quem já está no caderno", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("harbor"), { now: T0 });
+  assert.strictEqual(s.list(T0)[0].seen, 1, "a captura já conta como uma aparição");
+
+  s.recordSeen(palavra("harbor"), { now: T0 + 1000 });
+  s.recordSeen(palavra("harbor"), { now: T0 + 2000 });
+  const e = s.list(T0)[0];
+  assert.strictEqual(e.seen, 3);
+  assert.strictEqual(e.hits, 1, "aparecer não é acertar");
+  assert.strictEqual(e.misses, 0);
+});
+
+test("o tempo de digitação vira média por palavra", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("harbor"), { now: T0, ms: 4000 });
+  s.recordCapture(palavra("harbor"), { now: T0 + DAY, ms: 2000 });
+  assert.strictEqual(s.list(T0)[0].avgMs, 3000);
+});
+
+test("tempo absurdo não entra na média", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("harbor"), { now: T0, ms: 3000 });
+  // saiu para o café no meio da palavra: dez minutos não são hesitação
+  s.recordCapture(palavra("harbor"), { now: T0 + DAY, ms: 600000 });
+  assert.strictEqual(s.list(T0)[0].avgMs, 3000);
+});
+
+test("a frase de exemplo entra no caderno junto com a palavra", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("harbor", { ex: "The boat waited in the harbor." }), { now: T0 });
+  assert.match(s.list(T0)[0].ex, /harbor/);
+});
+
+/* ---------- Modo Deck ---------- */
+
+test("o deck traz primeiro quem mais escapou", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("facil"), { now: T0 });
+  s.recordMiss(palavra("dificil"), { now: T0 });
+  s.recordMiss(palavra("dificil"), { now: T0 + 1000 });
+  const fila = s.deckQueue(T0 + 2000).map(w => w.text);
+  assert.strictEqual(fila[0], "dificil");
+});
+
+test("deck sem tropeço nenhum cai na fila da revisão", () => {
+  const s = novoStore();
+  s.recordCapture(palavra("limpa"), { now: T0 });
+  assert.deepStrictEqual(s.hardest(T0), [], "ninguém tropeçou ainda");
+  assert.strictEqual(s.deckQueue(T0).length, 1, "melhor revisar do que abrir vazio");
+});
+
+test("hardest ignora as palavras já dominadas", () => {
+  const s = novoStore();
+  s.recordMiss(palavra("velha"), { now: T0 });
+  for (let i = 0; i < 6; i++) s.recordCapture(palavra("velha"), { now: T0 + i * 40 * DAY });
+  const dominada = s.list(T0 + 400 * DAY)[0].mastered;
+  assert.strictEqual(dominada, true);
+  assert.deepStrictEqual(s.hardest(T0 + 400 * DAY), []);
+});
+
+/* ---------- Histórico e desbloqueios ---------- */
+
+test("cada sessão vira uma linha no histórico", () => {
+  const s = novoStore();
+  s.recordSession({ mode: "classic", score: 100, learned: 5, wpm: 40, accuracy: 97, chars: 30, ms: 60000 });
+  s.recordSession({ mode: "zen", score: 50, learned: 3, wpm: 44, accuracy: 99, chars: 20, ms: 40000 });
+  const h = s.history();
+  assert.strictEqual(h.length, 2);
+  assert.strictEqual(h[1].wpm, 44);
+  assert.strictEqual(h[1].mode, "zen");
+});
+
+test("o histórico não cresce para sempre", () => {
+  const s = novoStore();
+  for (let i = 0; i < 140; i++) {
+    s.recordSession({ mode: "classic", score: i, learned: 1, wpm: i, accuracy: 90, chars: 10, ms: 1000 });
+  }
+  const h = s.history();
+  assert.strictEqual(h.length, 120);
+  assert.strictEqual(h[h.length - 1].wpm, 139, "as mais recentes é que ficam");
+});
+
+test("climas abrem por palavras digitadas", () => {
+  const s = novoStore();
+  assert.strictEqual(s.visualUnlocked("rain"), false);
+  assert.strictEqual(s.nextVisualUnlock({ rain: 1, dawn: 1 }).key, "rain");
+  s.stats.captured = 200;
+  assert.strictEqual(s.visualUnlocked("rain"), true);
+  assert.strictEqual(s.visualUnlocked("ember"), true, "o primeiro clima nunca fecha");
+});
+
+test("o clima em uso continua aberto mesmo sem o marco", () => {
+  const s = novoStore();
+  s.prefs.visual = "dawn";
+  assert.strictEqual(s.visualUnlocked("dawn"), true);
+});
+
+test("caderno da v2 ganha os campos novos sem perder nada", () => {
+  const backing = factory.memoryStorage();
+  backing.setItem("tc.version", "2");
+  backing.setItem("tc.notebook", JSON.stringify({
+    harbor: { pos: "n", en: "a place for ships", pt: "porto", lvl: "B1", theme: "travel",
+              hits: 3, misses: 1, typos: 2, first: T0, last: T0,
+              srs: { ease: 2.5, interval: 3, reps: 2, lapses: 1, due: T0 } }
+  }));
+  const s = factory.create(backing, srs);
+  const e = s.list(T0)[0];
+  assert.strictEqual(e.hits, 3, "o histórico antigo continua lá");
+  assert.strictEqual(e.seen, 4, "aparições deduzidas de acertos e erros");
+  assert.strictEqual(e.avgMs, 0, "sem tempo medido, sem média inventada");
 });

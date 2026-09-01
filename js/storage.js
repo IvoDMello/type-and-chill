@@ -10,20 +10,22 @@
  *   tc.stats       → recordes, totais, ofensiva de dias
  *   tc.notebook    → o caderno, com agendamento de revisão por palavra
  *   tc.challenges  → placar local de cada desafio (seu e dos amigos)
+ *   tc.history     → uma linha por sessão, para o gráfico de evolução
  */
 (function (root, factory) {
   var api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) {
     root.TCStoreFactory = api;
-    root.TCStore = api.create(api.safeStorage(root), root.TCSrs);
+    root.TCStore = api.create(api.safeStorage(root), root.TCSrs, root.TCProgress);
   }
 })(typeof window !== "undefined" ? window : null, function () {
   "use strict";
 
   var PREFIX = "tc.";
-  var VERSION = 2;
+  var VERSION = 3;
   var DAY = 86400000;
+  var HISTORY_MAX = 120;
 
   /* Em janela anônima o acesso ao localStorage pode lançar só de ser lido.
    * Nesse caso o jogo roda igual, mas sem persistir. */
@@ -56,16 +58,25 @@
         mode: "classic",
         music: true,
         sfx: true,
+        musicVol: 0.7,                      // 0–1, o que o menu de opções controla
+        sfxVol: 0.8,
         showPT: false,
         speak: false,                       // pronúncia das palavras
         name: "",                           // apelido nos desafios
-        dailyGoal: 20
+        dailyGoal: 20,
+        // ---- opções de vídeo e exibição ----
+        quality: "auto",                    // auto · high · medium · low · off
+        motion: "auto",                     // auto (segue o sistema) · full · reduced
+        wordScale: 1,                       // 0.8–1.4, tamanho das palavras caindo
+        showExample: true,                  // frase de exemplo no cartão da captura
+        showCollected: true                 // lista lateral de capturadas
       },
       stats: {
         best: 0, bestZen: 0, bestCombo: 0,
         captured: 0, missed: 0, sessions: 0, playedMs: 0,
         keystrokes: 0, correctKeys: 0, chars: 0,
-        streak: 0, bestStreak: 0, lastDay: "", todayCount: 0
+        streak: 0, bestStreak: 0, lastDay: "", todayCount: 0,
+        freezes: 0, frozenDay: ""      // dias pulados que a ofensiva perdoou
       }
     };
   }
@@ -83,9 +94,16 @@
     return d.getFullYear() + "-" + (m.length < 2 ? "0" + m : m) + "-" + (day.length < 2 ? "0" + day : day);
   }
 
-  function create(storage, srs) {
+  /* O terceiro argumento é o core/progress.js. Não se chama "progress" aqui
+   * porque este arquivo já tem uma função com esse nome (o progresso por tema
+   * do caderno), e a declaração dela venceria o parâmetro. */
+  function create(storage, srs, progressApi) {
     var store = storage || memoryStorage();
     var failed = false;                      // escrita bloqueada: avisa a UI uma vez
+    var prog = progressApi || null;
+    if (!prog && typeof require === "function") {
+      try { prog = require("./core/progress.js"); } catch (e) { prog = null; }
+    }
 
     function read(key, fallback) {
       var raw;
@@ -104,6 +122,8 @@
     var stats = fill(read("stats", {}) || {}, d.stats);
     var notebook = read("notebook", {}) || {};
     var challenges = read("challenges", {}) || {};
+    var history = read("history", []) || [];
+    if (!Array.isArray(history)) history = [];
 
     /* ---------- Migração ---------- */
     var version = read("version", 0);
@@ -127,6 +147,17 @@
         if (e && e.typos === undefined) e.typos = 0;
       });
 
+      // v3 passou a medir o que o documento pede por palavra: quantas vezes
+      // ela apareceu e quanto tempo você leva pra digitá-la. Quem já tinha
+      // caderno começa com "apareceu ao menos uma vez por acerto ou erro".
+      Object.keys(notebook).forEach(function (w) {
+        var e = notebook[w];
+        if (!e) return;
+        if (e.seen === undefined) e.seen = (e.hits || 0) + (e.misses || 0);
+        if (e.msSum === undefined) { e.msSum = 0; e.msN = 0; }
+        if (e.ex === undefined) e.ex = "";
+      });
+
       write("version", VERSION);
       version = VERSION;
       write("prefs", prefs); write("stats", stats); write("notebook", notebook);
@@ -137,9 +168,10 @@
     function saveStats() { return write("stats", stats); }
     function saveNotebook() { return write("notebook", notebook); }
     function saveChallenges() { return write("challenges", challenges); }
+    function saveHistory() { return write("history", history); }
     function flush() {
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-      savePrefs(); saveStats(); saveNotebook(); saveChallenges();
+      savePrefs(); saveStats(); saveNotebook(); saveChallenges(); saveHistory();
     }
     function isPersisting() { return !failed; }
 
@@ -158,19 +190,42 @@
     }
 
     /* ---------- Ofensiva diária ---------- */
-    /* Chamado no início de cada partida: mantém a contagem de dias seguidos. */
+    /* Chamado no início de cada partida: mantém a contagem de dias seguidos.
+     *
+     * Pular um dia não zera nada — a ofensiva congela e retoma de onde estava.
+     * Perder três semanas de hábito por causa de uma viagem é exatamente o tipo
+     * de punição que faz a pessoa não voltar, e este jogo não quer isso. */
     function touchDay(now) {
       var t = now || Date.now();
       var today = dayKey(t);
       if (stats.lastDay === today) return stats;
 
       var yesterday = dayKey(t - DAY);
-      stats.streak = stats.lastDay === yesterday ? (stats.streak || 0) + 1 : 1;
-      if (stats.streak > (stats.bestStreak || 0)) stats.bestStreak = stats.streak;
+      var next = prog
+        ? prog.touchStreak(stats, today, yesterday)
+        : (function () {
+            var s = { streak: (stats.streak || 0), bestStreak: stats.bestStreak || 0,
+                      lastDay: today, freezes: stats.freezes || 0, frozen: false };
+            if (!stats.lastDay || !s.streak) s.streak = 1;
+            else if (stats.lastDay === yesterday) s.streak += 1;
+            else { s.frozen = true; s.freezes += 1; }
+            if (s.streak > s.bestStreak) s.bestStreak = s.streak;
+            return s;
+          })();
+
+      stats.streak = next.streak;
+      stats.bestStreak = next.bestStreak;
+      stats.freezes = next.freezes;
       stats.lastDay = today;
       stats.todayCount = 0;
+      if (next.frozen) stats.frozenDay = today;
       saveStats();
       return stats;
+    }
+    /* A ofensiva foi congelada hoje? A tela inicial diz isso em vez de fingir
+     * que os dias pulados nunca existiram. */
+    function streakFrozenToday(now) {
+      return !!stats.frozenDay && stats.frozenDay === dayKey(now || Date.now());
     }
     function goalProgress() {
       var goal = prefs.dailyGoal || 20;
@@ -183,14 +238,35 @@
       if (!e) {
         e = notebook[word.text] = {
           pos: word.pos, en: word.def, pt: word.pt, lvl: word.lvl, theme: word.theme,
-          hits: 0, misses: 0, typos: 0, first: now, last: 0,
+          ex: word.ex || "",
+          hits: 0, misses: 0, typos: 0, seen: 1, msSum: 0, msN: 0,
+          first: now, last: 0,
           srs: srs ? srs.fresh(now) : { ease: 2.5, interval: 0, reps: 0, lapses: 0, due: now }
         };
       } else {
         // o banco pode ter sido editado desde a última partida
         e.pos = word.pos; e.en = word.def; e.pt = word.pt;
         e.lvl = word.lvl; e.theme = word.theme;
+        if (word.ex) e.ex = word.ex;
       }
+      return e;
+    }
+
+    /* Contabiliza que a palavra apareceu na tela. É o denominador de tudo:
+     * sem ele, "errei essa duas vezes" não distingue quem viu a palavra duas
+     * vezes de quem a viu vinte.
+     *
+     * Só conta para quem já está no caderno, e de propósito: entrar no caderno
+     * é ter sido capturada ou ter escapado. Se a mera aparição criasse entrada,
+     * cada partida deixaria para trás as palavras que ainda caíam na tela na
+     * hora do game over — todas com zero acerto, todas vencidas, todas na fila
+     * de revisão de amanhã. A primeira aparição de cada palavra é contada
+     * quando ela entra, pela captura ou pelo erro. */
+    function recordSeen(word, opts) {
+      var e = notebook[word.text];
+      if (!e) return null;
+      e.seen = (e.seen || 0) + 1;
+      scheduleSave();
       return e;
     }
 
@@ -201,6 +277,12 @@
       e.hits += 1;
       e.typos += (o.typos || 0);
       e.last = now;
+      // tempo de digitação: da primeira tecla à última. Tempo de leitura da
+      // palavra caindo não entra — o que interessa é a hesitação ao digitar.
+      if (o.ms > 0 && o.ms < 60000) {
+        e.msSum = (e.msSum || 0) + o.ms;
+        e.msN = (e.msN || 0) + 1;
+      }
       if (srs) e.srs = srs.review(e.srs, srs.quality(true, o.typos || 0), now);
       stats.captured += 1;
       stats.todayCount = (stats.todayCount || 0) + 1;
@@ -226,14 +308,18 @@
     }
 
     function toItem(word, e, now) {
-      return {
+      var item = {
         text: word, pos: e.pos, def: e.en, pt: e.pt, lvl: e.lvl, theme: e.theme,
-        hits: e.hits, misses: e.misses, typos: e.typos || 0,
+        ex: e.ex || "",
+        hits: e.hits, misses: e.misses, typos: e.typos || 0, seen: e.seen || 0,
+        avgMs: e.msN ? Math.round(e.msSum / e.msN) : 0,
         first: e.first, last: e.last, srs: e.srs,
         mastered: isMastered(e),
         due: srs ? srs.isDue(e.srs, now) : true,
         daysUntilDue: srs ? srs.daysUntilDue(e.srs, now) : 0
       };
+      item.fragility = srs && srs.fragility ? srs.fragility(item, now) : 0;
+      return item;
     }
 
     function list(now) {
@@ -250,15 +336,39 @@
       return { total: all.length, mastered: mastered, learning: all.length - mastered, due: due };
     }
 
+    function playable(e) {
+      return { text: e.text, pos: e.pos, def: e.def, pt: e.pt, lvl: e.lvl, theme: e.theme, ex: e.ex };
+    }
+
     /* Fila do modo Prática: as atrasadas primeiro, depois as mais frágeis. */
     function practiceQueue(now, limit) {
       var t = now || Date.now();
       var pending = list(t).filter(function (e) { return !e.mastered; });
       var ordered = srs ? srs.sortForReview(pending, t) : pending;
-      var max = limit || 40;
-      return ordered.slice(0, max).map(function (e) {
-        return { text: e.text, pos: e.pos, def: e.def, pt: e.pt, lvl: e.lvl, theme: e.theme };
+      return ordered.slice(0, limit || 40).map(playable);
+    }
+
+    /* "As que te pegam": ordenadas por fragilidade, sem olhar a data. É a
+     * lista do caderno e a fila do modo Deck — o documento pede uma fila que
+     * consome as palavras que *você* errou, com prioridade para as mais
+     * antigas e as mais falhadas. */
+    function hardest(now, limit) {
+      var t = now || Date.now();
+      var pending = list(t).filter(function (e) {
+        return !e.mastered && ((e.misses || 0) > 0 || (e.typos || 0) > 0 || (e.srs && e.srs.lapses));
       });
+      var ordered = srs && srs.sortByFragility ? srs.sortByFragility(pending, t) : pending;
+      return limit ? ordered.slice(0, limit) : ordered;
+    }
+
+    /* Fila do modo Deck. Quando ninguém tropeçou em nada ainda, cai na fila da
+     * revisão — melhor jogar as agendadas do que abrir um deck vazio. */
+    function deckQueue(now, limit) {
+      var t = now || Date.now();
+      var max = limit || 40;
+      var rows = hardest(t, max).map(playable);
+      if (rows.length) return rows;
+      return practiceQueue(t, max);
     }
 
     /* Progresso por tema e por nível, para as barras do caderno. */
@@ -338,6 +448,22 @@
     }
 
     /* ---------- Métricas da sessão ---------- */
+    /* Uma linha por sessão jogada, para o gráfico de evolução do caderno.
+     * Só isto: nada de eventos, nada de telemetria — o arquivo precisa caber
+     * no localStorage por anos. */
+    function pushHistory(session) {
+      history.push({
+        at: Date.now(), mode: session.mode || "classic",
+        score: session.score || 0, learned: session.learned || 0,
+        wpm: session.wpm || 0, accuracy: session.accuracy || 0,
+        chars: session.chars || 0, ms: session.ms || 0
+      });
+      if (history.length > HISTORY_MAX) history = history.slice(history.length - HISTORY_MAX);
+      saveHistory();
+      return history;
+    }
+    function historyList() { return history.slice(); }
+
     function recordSession(session) {
       stats.sessions += 1;
       stats.playedMs += session.ms || 0;
@@ -347,8 +473,21 @@
       if ((session.bestCombo || 0) > (stats.bestCombo || 0)) stats.bestCombo = session.bestCombo;
       if (session.mode === "classic" && (session.score || 0) > (stats.best || 0)) stats.best = session.score;
       if (session.mode === "zen" && (session.score || 0) > (stats.bestZen || 0)) stats.bestZen = session.score;
+      pushHistory(session);
       saveStats();
       return stats;
+    }
+
+    /* ---------- Climas desbloqueados ---------- */
+    /* O metajogo do documento é só isto: estatística e cosmético. Nada de
+     * moeda, nada de loja — climas que abrem por palavras digitadas. */
+    function visualUnlocked(key) {
+      if (!prog) return true;
+      return prog.isUnlocked(key, stats.captured || 0, prefs.visual);
+    }
+    function nextVisualUnlock(visuals) {
+      if (!prog) return null;
+      return prog.nextUnlock(stats.captured || 0, visuals);
     }
 
     return {
@@ -357,10 +496,14 @@
       stats: stats, saveStats: saveStats,
       notebook: function () { return notebook; },
       entryFor: function (w) { return notebook[w] || null; },
-      recordCapture: recordCapture, recordMiss: recordMiss,
+      recordCapture: recordCapture, recordMiss: recordMiss, recordSeen: recordSeen,
       isMastered: isMastered, list: list, counts: counts, progress: progress,
-      practiceQueue: practiceQueue, clearNotebook: clearNotebook, saveNotebook: saveNotebook,
-      touchDay: touchDay, goalProgress: goalProgress, dayKey: dayKey,
+      practiceQueue: practiceQueue, hardest: hardest, deckQueue: deckQueue,
+      clearNotebook: clearNotebook, saveNotebook: saveNotebook,
+      history: historyList, saveHistory: saveHistory,
+      visualUnlocked: visualUnlocked, nextVisualUnlock: nextVisualUnlock,
+      touchDay: touchDay, streakFrozenToday: streakFrozenToday,
+      goalProgress: goalProgress, dayKey: dayKey,
       saveMyResult: saveMyResult, addFriendResult: addFriendResult,
       leaderboard: leaderboard, challengeList: challengeList,
       recordSession: recordSession,
@@ -369,5 +512,8 @@
     };
   }
 
-  return { create: create, safeStorage: safeStorage, memoryStorage: memoryStorage, VERSION: VERSION, dayKey: dayKey };
+  return {
+    create: create, safeStorage: safeStorage, memoryStorage: memoryStorage,
+    VERSION: VERSION, dayKey: dayKey, defaults: defaults
+  };
 });

@@ -6,3 +6,6 @@ Thumbs.db
 .vscode/
 android/
 ios/
+
+# relatório de cobertura da interface
+coverage/

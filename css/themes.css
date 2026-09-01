@@ -148,3 +148,37 @@ html[data-visual="dawn"] {
   --btn-fg: #fff6f0;
   --btn-glow: rgba(200,84,58,0.30);
 }
+
+/* ---------- Aurora: verde-azulado frio, o clima que abre por último ---------- */
+html[data-visual="aurora"] {
+  --bg-layers:
+    radial-gradient(1200px 780px at 50% 116%, rgba(52,211,153,0.22), transparent 62%),
+    radial-gradient(920px 640px at 78% -8%, rgba(129,140,248,0.20), transparent 62%),
+    radial-gradient(760px 540px at 8% 4%, rgba(45,212,191,0.14), transparent 60%),
+    linear-gradient(170deg, #07231f 0%, #05161c 54%, #030a10 100%);
+  --text: #e3f7ef;
+  --muted: #9dc9bd;
+  --faint: #6f9a92;
+  --accent: #5eead4;
+  --accent-2: #818cf8;
+  --hot: #34d399;
+  --gold: #bbf7d0;
+  --panel: rgba(8,38,38,0.62);
+  --border: rgba(94,234,212,0.18);
+  --border-hi: rgba(94,234,212,0.5);
+  --word-bg: rgba(4,18,22,0.45);
+  --word-border: rgba(94,234,212,0.15);
+  --word-bg-on: rgba(10,52,50,0.75);
+  --word-border-on: rgba(94,234,212,0.58);
+  --word-glow: rgba(52,211,153,0.28);
+  --letter: #bde8dc;
+  --letter-next: #ffffff;
+  --overlay: radial-gradient(900px 720px at 50% 32%, rgba(6,32,32,0.76), rgba(2,8,12,0.93));
+  --card: linear-gradient(165deg, rgba(10,52,48,0.92), rgba(4,16,20,0.95));
+  --card-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  --field: rgba(4,18,22,0.55);
+  --btn-a: #99f6e4;
+  --btn-b: #14b8a6;
+  --btn-fg: #032420;
+  --btn-glow: rgba(20,184,166,0.38);
+}

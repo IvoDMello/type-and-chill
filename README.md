@@ -7,10 +7,17 @@ O que o separa de um joguinho de digitação qualquer:
 
 - **20 temas de vocabulário** em recortes estreitos — esportes, profissões, bichos, roupa,
   dinheiro, tempo… — separados em quatro famílias na hora de escolher.
+- **708 palavras com frase de exemplo** — todas. Definição ensina a reconhecer;
+  frase ensina a usar.
 - **Trilha ambiente generativa**, feita em código, sem direitos autorais.
-- **Quatro climas** que mudam paleta, fundo e harmonia da trilha ao mesmo tempo.
-- **Caderno com repetição espaçada** (SM-2): cada palavra volta pouco antes de você esquecer.
+- **Cinco climas** que mudam paleta, fundo e harmonia da trilha ao mesmo tempo — dois
+  abertos desde o começo, três que chegam por palavras digitadas.
+- **Caderno com repetição espaçada** (SM-2): cada palavra volta pouco antes de você esquecer,
+  com estatística por palavra e envio direto pro Anki.
 - **Desafios entre amigos** sem servidor: um código faz todo mundo jogar a mesma partida.
+- **Menu de opções** de jogo de verdade: volume separado de música e efeitos, qualidade
+  gráfica, animações, tamanho das palavras, tela cheia.
+- **Instalável** como aplicativo (PWA), e funciona sem internet depois da primeira visita.
 
 Feito pra deixar aberto no segundo monitor enquanto você assiste algo. 😌
 
@@ -29,16 +36,45 @@ O `npm` só é necessário para os **testes**. O jogo em si nunca depende dele.
 
 ---
 
-## 🎮 Os três modos
+## 🎮 Os quatro modos
 
 | Modo | Como funciona | Pra quê |
 |---|---|---|
 | **Clássico** | 3 vidas, o ritmo acelera a cada 8 palavras (até o nível 12) | A partida de sempre, com recorde |
 | **Zen** | Sem vidas, sem fim, ritmo constante | Deixar rodando enquanto faz outra coisa |
-| **Prática** | A fila de revisão do caderno, na ordem do agendamento | Fixar o que ainda escapa |
+| **Prática** | A fila de revisão do caderno, na ordem do agendamento | Fixar o que vence hoje |
+| **Deck** | Só as palavras em que você tropeça, as mais falhadas primeiro | Encarar o que te pega |
 
-No modo Prática cada palavra da fila aparece uma vez só; quando a fila acaba, a revisão
-termina e você vê o resumo.
+Prática e Deck são os dois **modos de fila**: cada palavra aparece uma vez só e a partida
+termina quando a fila acaba. A diferença é a ordem — Prática segue o **agendamento** (o que
+você está prestes a esquecer), Deck segue o **tropeço** (o que escapou, errou ou demorou).
+O Deck sem tropeço nenhum cai na fila da revisão, em vez de abrir vazio.
+
+---
+
+## ⚙️ O menu de opções
+
+A engrenagem fica no canto da tela inicial, no rodapé durante a partida e na tela de
+pausa — e responde à tecla **O** (ou **Alt+O** jogando). Abrir a engrenagem no meio de uma
+partida **pausa**: mexer no volume enquanto as palavras caem custaria três delas.
+
+| Aba | O que tem |
+|---|---|
+| **Áudio** | Música e efeitos com **volume separado** (a trilha baixinha e a tecla audível, ou o contrário) e a pronúncia das palavras |
+| **Gráficos** | Qualidade das partículas (Auto · Alta · Média · Baixa · Desligada), animações (Auto · Completas · Reduzidas) e tela cheia |
+| **Exibição** | Tamanho das palavras que caem, tradução em português, frase de exemplo e a lista de capturadas |
+| **Jogo** | Meta diária, apelido no placar e o atalho para os ajustes da partida |
+| **Dados** | Caderno, download do CSV, onde ficam seus dados e apagar o caderno |
+
+Cada linha grava sozinha e aplica na hora — não existe botão de "salvar", que é o tipo de
+coisa que faz a pessoa mexer no volume, fechar e perder o ajuste. **Restaurar padrões**
+devolve só o que este menu controla: temas, níveis e caderno não são opções.
+
+Em **Qualidade**, "Auto" é o padrão e deixa o jogo medir o FPS e aliviar sozinho em máquina
+fraca. Escolher um nível desliga essa medição — quem mandou foi você.
+
+O que **jogar** (modo, temas, níveis, clima) continua no painel de *Ajustes da partida*,
+tecla **A**: são duas perguntas diferentes, e misturá-las faria um menu que ninguém acha.
 
 ---
 
@@ -54,12 +90,28 @@ Cada palavra carrega um agendamento no estilo **SM-2** (o algoritmo do Anki, enx
 - errar zera as repetições, devolve a palavra para amanhã e derruba a facilidade
 - **dominada ✦** = 3 repetições certas e intervalo de 21 dias ou mais
 
-A tela do caderno mostra o progresso por nível, deixa buscar por palavra, definição ou
-tradução, filtrar por tema/nível/situação, e **baixar tudo em CSV** (pronto pra importar
-no Anki, Quizlet ou planilha).
+Cada palavra guarda quatro números, e todos aparecem na linha dela: **quantas vezes
+apareceu** (👁), **quantas foram capturadas** (✓), **quantas escaparam** (✕) e **quanto
+tempo você leva pra digitá-la**. Juntos eles viram a *fragilidade* — o quanto a palavra
+ainda te pega —, que é o que ordena o filtro **"as que te pegam"** e a fila do modo Deck.
+
+A tela do caderno mostra o progresso por nível, a **curva de evolução** (PPM e precisão nas
+últimas 30 sessões), deixa buscar por palavra, definição ou tradução, filtrar por
+tema/nível/situação, e exportar de dois jeitos:
+
+- **Baixar CSV** — abre em planilha e importa em Anki ou Quizlet. Traz a frase de exemplo,
+  as estatísticas e a data da próxima revisão.
+- **Enviar pro Anki** — manda as palavras da tela direto pro baralho *Type & Chill*, sem
+  arquivo nenhum. Precisa do Anki aberto com o add-on **AnkiConnect**, e do endereço desta
+  página na `webCorsOriginList` do add-on. Se algo faltar, o jogo explica o que fazer em vez
+  de falhar calado.
 
 Também na tela inicial: **ofensiva de dias seguidos**, **meta diária** e quantas palavras
 vencem hoje.
+
+A ofensiva **congela em vez de zerar**. Faltou um dia, a contagem para de pé (e a tela diz
+"dias congelados ❄"); o próximo dia jogado retoma de onde estava. Perder três semanas de
+hábito por causa de uma viagem é o tipo de punição que faz a pessoa não voltar.
 
 Tudo fica no `localStorage`, gravado sozinho a cada captura — nada sai da sua máquina.
 
@@ -100,6 +152,7 @@ Durante a partida:
 | `Alt`+`P` | mostra/esconde a tradução em português |
 | `Alt`+`M` · `Alt`+`S` | música e efeitos sonoros |
 | `Alt`+`C` | abre o caderno |
+| `Alt`+`O` | abre as opções (e pausa) |
 
 **Todo atalho da partida usa `Alt`**, e não é por capricho: letra solta é sempre
 digitação. Um dia `P` foi atalho de pausa e isso tornou impossível capturar as 84
@@ -110,7 +163,8 @@ Na tela inicial, onde não se digita nada, as letras podem ser atalho:
 | Tecla | O que faz |
 |---|---|
 | `Enter` | começa a partida |
-| `A` | abre os ajustes |
+| `A` | abre os ajustes da partida |
+| `O` | abre as opções |
 | `C` | abre o caderno |
 
 O jogo **pausa sozinho** quando você troca de aba, e grava o caderno nesse momento.
@@ -128,27 +182,34 @@ encolhe junto com a viewport visível, então nada cai atrás do teclado.
 ```
 Type & Chill/
 ├── index.html            → a página e a estrutura das telas
+├── manifest.webmanifest  → o que faz o jogo poder ser instalado
+├── sw.js                 → cache offline (service worker)
+├── icon.svg              → ícone do aplicativo instalado
 ├── css/
-│   ├── themes.css        → as quatro paletas (só variáveis de cor)
+│   ├── themes.css        → as cinco paletas (só variáveis de cor)
 │   └── style.css         → layout e componentes (nenhuma cor solta aqui)
 ├── js/
 │   ├── words.js          → o banco de palavras  ← mexa aqui pra adicionar palavras
+│   ├── examples.js       → a frase de exemplo de cada palavra
 │   ├── core/             → lógica pura, sem DOM, coberta por testes
 │   │   ├── rng.js        → aleatoriedade determinística e o baralho da partida
-│   │   ├── srs.js        → repetição espaçada (SM-2)
+│   │   ├── srs.js        → repetição espaçada (SM-2) e fragilidade
 │   │   ├── scoring.js    → pontuação, ritmo, PPM e precisão
 │   │   ├── challenge.js  → códigos de desafio e de resultado
-│   │   └── wordbank.js   → leitura e validação do banco
-│   ├── storage.js        → preferências, caderno, ofensiva e placares
+│   │   ├── wordbank.js   → leitura e validação do banco
+│   │   └── progress.js   → marcos dos climas, curva de evolução e ofensiva
+│   ├── storage.js        → preferências, caderno, ofensiva, histórico e placares
 │   ├── themes.js         → climas: paleta, fundo animado e clima sonoro
 │   ├── audio.js          → a trilha ambiente generativa + efeitos
 │   ├── speech.js         → pronúncia das palavras (Web Speech API)
-│   ├── notebook.js       → a tela do caderno
+│   ├── notebook.js       → a tela do caderno, o gráfico, o CSV e o Anki
+│   ├── options.js        → o menu da engrenagem (áudio, gráficos, exibição, dados)
 │   ├── challengeui.js    → a tela de desafios
 │   └── game.js           → o laço do jogo e os modos
 ├── tests/
-│   ├── unit/             → 74 testes, sem navegador (node:test)
-│   └── e2e/              → 15 testes no Chrome de verdade
+│   ├── unit/             → 147 testes, sem navegador (node:test)
+│   ├── e2e/              → 26 testes no Chrome de verdade
+│   │   └── coverage.js   → mede quanto do JS de interface os testes executam
 └── tools/serve.js        → servidor estático de desenvolvimento
 ```
 
@@ -162,20 +223,53 @@ viram `window.TCRng`, `window.TCSrs`… no navegador e `require()` no Node.
 
 ```bash
 npm install        # só na primeira vez (puppeteer-core, ~3 MB, sem baixar navegador)
-npm test           # 74 testes de unidade, ~1s
-npm run test:e2e   # 15 testes de ponta a ponta num Chrome headless, ~100s
-npm run test:all   # os dois
+npm test           # 147 testes de unidade, ~1s
+npm run coverage   # os mesmos testes, com piso de cobertura de 85%
+npm run test:e2e   # 26 testes de ponta a ponta num Chrome headless, ~150s
+npm run test:all   # cobertura + ponta a ponta
 ```
 
-Os testes de unidade cobrem o banco de palavras, o gerador determinístico, o SM-2, a
-pontuação, os códigos de desafio e o armazenamento (inclusive migração, JSON corrompido e
-armazenamento bloqueado). Não precisam de navegador.
+### Cobertura, e onde cada arquivo é cobrado
+
+A cobertura é medida nos dois mundos, porque metade do jogo é DOM e nunca apareceria
+num relatório só de Node:
+
+| Onde | Como | Piso |
+|---|---|---|
+| Lógica (`js/core/`, `js/storage.js`) | `npm run coverage` — o coletor do próprio Node | **85%** de linhas, ramos e funções |
+| Interface (`js/game.js`, `options.js`, `notebook.js`, `challengeui.js`, `themes.js`, `audio.js`) | `npm run test:e2e` — o V8 do Chrome, pelo mesmo caminho da aba *Coverage* do DevTools | **85%** de bytes executados |
+
+Números da última medição: **99,8% de linhas · 88% de ramos · 99,3% de funções** no Node,
+e na interface **game 86% · options 97% · notebook 95% · desafios 89% · climas 85% ·
+áudio 90%**. O relatório da interface é gravado em `coverage/interface.json`, e a tabela
+aparece no fim do `npm run test:e2e`.
+
+Dois arquivos têm piso menor e é de propósito: `speech.js` (75%) depende de vozes
+instaladas no sistema e `themes.js` (82%) desenha partículas quadro a quadro — exigir
+deles o mesmo que de um arquivo de lógica seria fingir cobertura. `words.js` e
+`examples.js` ficam fora da conta: são dados, não código.
+
+Os testes de unidade cobrem o banco de palavras (inclusive **100% de cobertura das frases
+de exemplo**, e se cada frase usa mesmo a própria palavra), o gerador determinístico, o
+SM-2 e a fragilidade, a pontuação, os marcos dos climas, a ofensiva congelada, os códigos
+de desafio e o armazenamento (inclusive migração desde o Driftwords, JSON corrompido,
+armazenamento bloqueado para leitura ou escrita e o jogo rodando **sem** os módulos de
+agendamento e de progresso). Não precisam de navegador.
+
+`tests/unit/robustez.test.js` existe só para os caminhos defensivos — o que acontece
+quando falta alguma coisa. São os ramos que nunca aparecem numa partida normal, e é
+justamente por isso que quebram sem ninguém ver.
 
 Os de ponta a ponta abrem o Chrome (ou Edge) que você já tem instalado — **nada é
 baixado**. Se não houver navegador nem `puppeteer-core`, eles são **pulados**, não
 falham. Para apontar outro binário: `CHROME_PATH=/caminho/do/chrome npm run test:e2e`.
 
-Quatro testes existem por causa de bugs que já aconteceram:
+Os de ponta a ponta também cobrem o menu de opções inteiro (as cinco abas, restaurar
+padrões, tela cheia), os atalhos de teclado, o CSV e as duas pontas do AnkiConnect (o
+add-on respondendo e o Anki fechado), o desafio do dia com as duas formas de copiar o
+código, e o clima que abre no meio da partida.
+
+Cinco testes existem por causa de bugs que já aconteceram:
 - *"palavras com a letra p podem ser digitadas"* — `P` já foi atalho de pausa e vinha
   antes da digitação no handler, o que tornava impossível capturar 84 palavras do banco.
 - *"o mesmo código entrega a mesma partida"* — se isso quebrar, dois amigos com o mesmo
@@ -184,6 +278,9 @@ Quatro testes existem por causa de bugs que já aconteceram:
   área de queda calculada as palavras somem por trás do HUD e da lista lateral.
 - *"a tela inicial muda entre novato e veterano"* — as duas telas nascem do mesmo HTML;
   quando uma quebra, a outra costuma continuar de pé e o erro passa despercebido.
+- *"o menu de opções aplica cada ajuste na hora"* — a barra do topo era escondida para
+  quem chegava agora, e levava junto a engrenagem: o jogador novo ficava sem caminho
+  nenhum até as opções.
 
 ---
 
@@ -198,9 +295,21 @@ Abra `js/words.js`. Cada entrada tem cinco campos:
 
 `palavra` · `classe` (n/v/adj/adv) · `definição em inglês` · `tradução` · `nível` (A2/B1/B2/C1).
 
-Duas regras que o jogo depende, e que o `npm test` verifica: a palavra precisa ser **só
-letras minúsculas de a–z** (espaço, hífen ou acento seriam impossíveis de digitar) e **não
-pode repetir** em outro tema, porque o caderno guarda uma entrada por palavra.
+E abra `js/examples.js` para a **frase de exemplo**, que é obrigatória:
+
+```js
+"twinkle": "The first stars twinkle above the hill.",
+```
+
+Três regras que o jogo depende, e que o `npm test` verifica: a palavra precisa ser **só
+letras minúsculas de a–z** (espaço, hífen ou acento seriam impossíveis de digitar), **não
+pode repetir** em outro tema (o caderno guarda uma entrada por palavra), e **precisa ter
+frase de exemplo** — uma frase curta que use a própria palavra (flexão regular vale:
+`walk` → *walked*). A frase aparece no cartão da captura, no resumo do fim, no caderno, no
+CSV e no cartão do Anki.
+
+Se preferir, a frase também pode vir como sexto campo da linha em `js/words.js`; quando as
+duas existem, a do banco ganha.
 
 ### Criar um tema novo
 Todo tema declara a **família** (`group`) a que pertence — é o que separa as fichinhas da
@@ -226,8 +335,15 @@ Prefira **recortes estreitos** — *esportes*, *profissões*, *bichos* — a tem
 2. Em `js/themes.js`, adicione a entrada com a **mesma chave**: `label`, `swatch`
    (as duas cores do preview), `bg` (como as partículas se movem) e `audio`
    (acordes e escala da trilha).
+3. Se ele deve ser uma recompensa, some a chave em `MILESTONES` (`js/core/progress.js`)
+   com o número de palavras que abre. Clima sem marco nasce aberto.
 
 O `style.css` não tem nenhuma cor fixa, então o clima novo já pega a interface inteira.
+
+### Mudar os marcos de desbloqueio
+`js/core/progress.js`, na constante `MILESTONES`. Hoje: **Brasa** e **Noite lo-fi** abertos,
+**Chuva** com 150 palavras digitadas, **Manhã** com 450 e **Aurora** com 900. Um clima que
+já esteja em uso nunca fecha, mesmo que o marco mude — ninguém perde o próprio tema.
 
 ### Deixar mais fácil / mais difícil
 Tudo em `js/core/scoring.js`: `capturePoints`, `levelFor`, `spawnInterval`, `fallSpeed`,
@@ -290,15 +406,64 @@ caderno ficam no rodapé, longe de onde as palavras caem.
 
 ---
 
+## 📲 Instalar como aplicativo
+
+O jogo é um **PWA**: servido por http(s), o navegador oferece instalar, e aí ele ganha ícone,
+janela sem abas e funciona sem internet (`sw.js` guarda a pasta inteira no cache).
+
+- No Chrome/Edge: o botão **"Instalar o jogo"** aparece sozinho na tela inicial quando o
+  navegador considera que dá; também dá pra usar o ícone na barra de endereço.
+- Abrindo o `index.html` no dedo (`file://`) tudo funciona **menos** a instalação e o
+  offline — service worker exige http(s). O `npm run serve` já basta pra testar.
+- Publicou uma versão nova? Troque a constante `CACHE` no `sw.js`, senão os navegadores
+  antigos continuam servindo a versão em cache.
+
+Um PWA entrega o que o empacotamento desktop entregaria (ícone, janela própria, offline)
+sem trocar de tecnologia, sem instalador e sem loja no meio — veja a nota abaixo.
+
+---
+
 ## 🗺️ Próximos passos
 
-- [ ] Publicar de graça (GitHub Pages, Netlify ou Vercel — é só subir a pasta).
+- [x] Frase de exemplo em todas as palavras do banco.
+- [x] Estatística por palavra, lista "as que te pegam" e modo Deck.
+- [x] Curva de evolução, climas por marco e ofensiva que congela.
+- [x] Exportar pro Anki (CSV e AnkiConnect).
+- [x] Instalável como aplicativo (PWA) e offline.
 - [x] Layout responsivo e teclado virtual no celular.
+- [ ] **Encher o banco**: de 708 para 2.000 palavras (com frase de exemplo cada uma).
+      É a tarefa que mais muda a experiência e a mais chata — e a que mais adia o "acabou".
+- [ ] Publicar de graça (GitHub Pages, Netlify ou Vercel — é só subir a pasta).
 - [ ] Alvos de toque no lugar do teclado (tocar na palavra pra escolhê-la) e testes em
       aparelho de verdade — o que falta antes de encarar a Play Store.
 - [ ] Empacotar com [Capacitor](https://capacitorjs.com) pra virar APK/AAB e ir pra Play Store.
       Como o projeto é HTML/CSS/JS puro, isso não exige reescrever nada.
+- [ ] Campanha: textos progressivos do A1 ao C1, digitados na íntegra, com palavras-alvo.
 - [ ] Placar online opcional, se um dia valer a pena ter servidor.
+
+### Sobre distribuir e cobrar
+
+O documento de design original falava em **Tauri ou Electron, mirando a Steam**. Vale
+registrar por que o rumo aqui é outro:
+
+- Na Steam, um jogo de digitação sem arco de conteúdo (sem história, sem arte cara, sem
+  chefes) compete com *Epistory* e *The Textorcist* e com sites gratuitos como o Monkeytype.
+  Some a taxa de entrada, os 30% da plataforma, a janela de reembolso de 2h — cruel pra um
+  jogo de sessões curtas — e a fama de "site numa janela" que jogos empacotados carregam.
+- Quem paga por isto não paga pelo *jogo*: paga por **aprender inglês**. É esse o produto —
+  banco grande, revisão espaçada, campanha, exportação — e é aí que a disposição a pagar
+  existe de verdade.
+- Por isso: **web primeiro, instalável como PWA**, cobrando direto (assinatura barata ou
+  compra única, com Pix/cartão) por um plano *Pro* — banco completo, campanha, sincronia e
+  exportação —, deixando o núcleo gratuito para trazer gente. Play Store depois, via
+  Capacitor, como canal de descoberta com a mesma base de código.
+- A Steam continua possível, mas como **experimento posterior** e produto separado: só
+  depois que a campanha existir e houver gente pagando na web. Um Tauri por cima do mesmo
+  código é barato de fazer quando esse dia chegar — e não entrega nada que o PWA já não dê
+  antes disso.
+
+> Nada de cobrança está implementado: não há conta, servidor nem trava por recurso.
+> Isso é decisão de produto, não de código, e entra quando houver o que vender.
 
 ---
 

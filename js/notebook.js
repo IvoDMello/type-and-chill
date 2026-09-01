@@ -49,10 +49,12 @@ window.TCNotebook = (function () {
 
     el("nbClose").addEventListener("click", close);
     el("nbPractice").addEventListener("click", function () {
+      var which = this.dataset.mode === "deck" ? "deck" : "practice";
       close();
-      if (api.onPractice) api.onPractice();
+      if (api.onPractice) api.onPractice(which);
     });
     el("nbExport").addEventListener("click", exportCsv);
+    el("nbAnki").addEventListener("click", sendToAnki);
     el("nbClear").addEventListener("click", function () {
       if (!window.confirm("Apagar todas as palavras do caderno? Isso não pode ser desfeito.")) return;
       TCStore.clearNotebook();
@@ -71,17 +73,26 @@ window.TCNotebook = (function () {
       if (st === "learning" && e.mastered) return false;
       if (st === "due" && (e.mastered || !e.due)) return false;
       if (st === "weak" && !(e.misses > 0)) return false;
+      if (st === "hard" && (e.mastered || e.fragility < 1)) return false;
       if (q) {
         var hay = (e.text + " " + (e.def || "") + " " + (e.pt || "")).toLowerCase();
         if (hay.indexOf(q) < 0) return false;
       }
       return true;
     }).sort(function (a, b) {
+      // na lista das que te pegam a ordem é o tropeço, não a data
+      if (st === "hard") return b.fragility - a.fragility;
       // primeiro o que precisa de revisão, depois o mais recente
       if (a.mastered !== b.mastered) return a.mastered ? 1 : -1;
       if (a.due !== b.due) return a.due ? -1 : 1;
       return b.last - a.last;
     });
+  }
+
+  /* O caderno pode ser mais velho que as frases de exemplo: quando a entrada
+   * gravada não tem uma, ela vem do banco atual. */
+  function exampleOf(e) {
+    return e.ex || (window.WORD_EXAMPLES && window.WORD_EXAMPLES[e.text]) || "";
   }
 
   function dueLabel(e) {
@@ -106,7 +117,13 @@ window.TCNotebook = (function () {
     lv.className = "nblvl"; lv.textContent = e.lvl || "";
     var tally = document.createElement("span");
     tally.className = "nbtally";
-    tally.textContent = "✓ " + e.hits + (e.misses ? "  ✕ " + e.misses : "") + " · " + dueLabel(e);
+    // o documento pede quatro números por palavra: apareceu, acertou, escapou
+    // e quanto tempo você leva pra digitar
+    var partes = ["✓ " + e.hits];
+    if (e.misses) partes.push("✕ " + e.misses);
+    if (e.seen) partes.push("👁 " + e.seen);
+    if (e.avgMs) partes.push((Math.round(e.avgMs / 100) / 10) + "s");
+    tally.textContent = partes.join("  ") + " · " + dueLabel(e);
 
     head.appendChild(w); head.appendChild(p); head.appendChild(lv); head.appendChild(tally);
 
@@ -119,6 +136,12 @@ window.TCNotebook = (function () {
       var pt = document.createElement("div");
       pt.className = "cpt"; pt.textContent = e.pt;
       li.appendChild(pt);
+    }
+    var frase = exampleOf(e);
+    if (frase) {
+      var ex = document.createElement("div");
+      ex.className = "cx"; ex.textContent = frase;
+      li.appendChild(ex);
     }
     return li;
   }
@@ -164,6 +187,45 @@ window.TCNotebook = (function () {
     });
   }
 
+  /* ---------- Evolução ----------
+   * Uma linha de PPM e uma de precisão nas últimas sessões. SVG na mão, sem
+   * biblioteca: são duas polilinhas, e trazer um pacote de gráficos para isso
+   * custaria mais bytes que o jogo inteiro. */
+  function renderEvolution() {
+    var box = el("nbEvolution");
+    var rows = TCProgress.series(TCStore.history(), 30);
+    if (rows.length < 3) { box.hidden = true; return; }   // duas partidas não são curva
+    box.hidden = false;
+
+    var t = TCProgress.trend(TCStore.history(), 5);
+    var sinal = t.delta > 0 ? "+" : "";
+    el("nbTrend").textContent =
+      "últimas 5 sessões · " + t.wpm + " ppm (" + sinal + t.delta + ") · " + t.accuracy + "% de precisão";
+
+    var W = 560, H = 120, pad = 8;
+    var maxWpm = 10;
+    rows.forEach(function (r) { if (r.wpm > maxWpm) maxWpm = r.wpm; });
+    maxWpm = Math.ceil(maxWpm / 10) * 10;
+
+    function pts(pick, max) {
+      return rows.map(function (r, i) {
+        var x = pad + (rows.length === 1 ? 0 : (i * (W - pad * 2)) / (rows.length - 1));
+        var y = H - pad - (Math.min(max, pick(r)) / max) * (H - pad * 2);
+        return Math.round(x) + "," + Math.round(y);
+      }).join(" ");
+    }
+
+    var svg = ""
+      + '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" role="img" '
+      + 'aria-label="Palavras por minuto e precisão nas últimas ' + rows.length + ' sessões">'
+      + '<polyline class="lineacc" points="' + pts(function (r) { return r.accuracy; }, 100) + '" />'
+      + '<polyline class="linewpm" points="' + pts(function (r) { return r.wpm; }, maxWpm) + '" />'
+      + "</svg>"
+      + '<p class="chartlegend"><span class="k kwpm"></span>PPM (pico ' + maxWpm
+      + ') <span class="k kacc"></span>precisão (0–100%)</p>';
+    el("nbChart").innerHTML = svg;
+  }
+
   function render() {
     var c = TCStore.counts();
     statsEl.innerHTML = "";
@@ -172,6 +234,7 @@ window.TCNotebook = (function () {
     statsEl.appendChild(statTile("Revisar hoje", c.due));
 
     renderProgress();
+    renderEvolution();
 
     var rows = filtered();
     listEl.innerHTML = "";
@@ -184,11 +247,18 @@ window.TCNotebook = (function () {
       ? "Seu caderno está vazio. Capture algumas palavras e elas aparecem aqui."
       : "Nenhuma palavra corresponde a esses filtros.";
 
-    var queue = practicePool();
+    /* O botão acompanha o filtro: quem está olhando "as que te pegam" quer
+     * enfrentar aquela lista, não a fila do agendamento. */
+    var deckView = statusEl.value === "hard";
+    var queue = deckView ? TCStore.deckQueue() : practicePool();
     var btn = el("nbPractice");
     btn.disabled = queue.length === 0;
-    btn.textContent = queue.length ? "Revisar " + queue.length + " palavras" : "Nada para revisar";
+    btn.textContent = queue.length
+      ? (deckView ? "Enfrentar " + queue.length + " palavras" : "Revisar " + queue.length + " palavras")
+      : (deckView ? "Nada te pegando" : "Nada para revisar");
+    btn.dataset.mode = deckView ? "deck" : "practice";
     el("nbExport").disabled = c.total === 0;
+    el("nbAnki").disabled = c.total === 0;
   }
 
   /* Fila de revisão, já ordenada pelo agendamento (atrasadas primeiro). */
@@ -198,12 +268,13 @@ window.TCNotebook = (function () {
 
   /* CSV pronto para importar em Anki, Quizlet ou planilha. */
   function exportCsv() {
-    var rows = [["palavra", "classe", "definicao_en", "traducao_pt", "nivel", "tema", "acertos", "erros", "proxima_revisao"]];
+    var rows = [["palavra", "classe", "definicao_en", "traducao_pt", "exemplo", "nivel", "tema",
+                 "vezes_vista", "acertos", "erros", "ms_por_palavra", "proxima_revisao"]];
     TCStore.list().forEach(function (e) {
       rows.push([
-        e.text, e.pos, e.def, e.pt, e.lvl,
+        e.text, e.pos, e.def, e.pt, exampleOf(e), e.lvl,
         (window.WORD_THEMES[e.theme] && window.WORD_THEMES[e.theme].label) || e.theme,
-        e.hits, e.misses,
+        e.seen, e.hits, e.misses, e.avgMs,
         e.srs && e.srs.due ? new Date(e.srs.due).toISOString().slice(0, 10) : ""
       ]);
     });
@@ -221,6 +292,74 @@ window.TCNotebook = (function () {
     } catch (e) {
       window.alert("Não consegui gerar o arquivo neste navegador.");
     }
+  }
+
+  /* ---------- Anki ----------
+   * O CSV serve para qualquer lugar; isto serve para quem já vive no Anki e
+   * não quer importar arquivo nenhum. O AnkiConnect é um add-on que abre uma
+   * porta local (8765) no Anki aberto — nada sai da máquina.
+   *
+   * Duas coisas costumam dar errado, e as duas viram mensagem em português
+   * aqui: o Anki fechado, e a origem desta página fora da webCorsOriginList
+   * do add-on. Sem essa explicação, o botão só falharia em silêncio.
+   */
+  var ANKI_URL = "http://127.0.0.1:8765";
+  var ANKI_DECK = "Type & Chill";
+
+  function anki(action, params) {
+    return fetch(ANKI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action, version: 6, params: params || {} })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.error) throw new Error(j.error);
+      return j ? j.result : null;
+    });
+  }
+
+  function ankiNote(e) {
+    var frase = exampleOf(e);
+    return {
+      deckName: ANKI_DECK,
+      modelName: "Basic",
+      fields: {
+        Front: e.text,
+        Back: (e.pt || "") + (e.def ? "<br><i>" + e.def + "</i>" : "") +
+              (frase ? "<br><br>" + frase : "")
+      },
+      options: { allowDuplicate: false },
+      tags: ["type-and-chill", e.lvl || "", e.theme || ""].filter(Boolean)
+    };
+  }
+
+  function sendToAnki() {
+    var btn = el("nbAnki");
+    var antes = btn.textContent;
+    var rows = filtered();                       // manda o que está na tela
+    if (!rows.length) return;
+    btn.disabled = true;
+    btn.textContent = "Enviando…";
+
+    anki("createDeck", { deck: ANKI_DECK })
+      .then(function () { return anki("addNotes", { notes: rows.map(ankiNote) }); })
+      .then(function (ids) {
+        var novos = (ids || []).filter(function (id) { return !!id; }).length;
+        var repetidas = (ids || []).length - novos;
+        btn.textContent = novos + " no Anki" + (repetidas ? " · " + repetidas + " já lá" : "");
+        setTimeout(function () { btn.textContent = antes; btn.disabled = false; }, 3200);
+      })
+      .catch(function (err) {
+        btn.textContent = antes;
+        btn.disabled = false;
+        window.alert(
+          "Não consegui falar com o Anki.\n\n" +
+          "1. O Anki precisa estar aberto, com o add-on AnkiConnect instalado.\n" +
+          "2. Nas opções do AnkiConnect, inclua o endereço desta página em " +
+          "webCorsOriginList (" + window.location.origin + ").\n\n" +
+          "Se preferir não mexer nisso, use o botão Baixar CSV.\n\nDetalhe: " +
+          (err && err.message ? err.message : err)
+        );
+      });
   }
 
   function open() {
@@ -242,5 +381,6 @@ window.TCNotebook = (function () {
   api.render = render;
   api.practicePool = practicePool;
   api.exportCsv = exportCsv;
+  api.sendToAnki = sendToAnki;
   return api;
 })();

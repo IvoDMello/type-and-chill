@@ -1,13 +1,15 @@
 /* Type & Chill — lógica do jogo.
  *
  * Depende de (nesta ordem):
- *   words.js · core/rng · core/srs · core/scoring · core/challenge · core/wordbank
- *   storage.js · themes.js · audio.js · speech.js · notebook.js · challengeui.js
+ *   words.js · examples.js · core/rng · core/srs · core/scoring · core/challenge
+ *   core/wordbank · core/progress · storage.js · themes.js · audio.js · speech.js
+ *   notebook.js · challengeui.js
  *
  * Modos:
  *   classic   3 vidas, o ritmo acelera a cada nível
  *   zen       sem vidas e sem fim, ritmo constante
  *   practice  a fila de revisão do caderno, ordenada pelo agendamento
+ *   deck      as palavras em que você tropeça, ordenadas pela fragilidade
  *
  * Desafios: quando a partida tem uma semente (challenge), as palavras, as
  * posições e as velocidades saem todas do gerador determinístico — dois
@@ -27,7 +29,7 @@
       startScreen, pauseScreen, overScreen, setupScreen, ghostEl,
       musicBtn, sfxBtn, ptBtn, touchInput;
 
-  var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
+  function reduceMotion() { return TCBackdrop.isReduced(); }
 
   // ---------- Estado ----------
   var POOL = [];
@@ -51,12 +53,18 @@
 
   // métricas da sessão
   var session = { startedAt: 0, pausedAt: 0, pausedMs: 0, keystrokes: 0, correctKeys: 0, chars: 0, bestCombo: 1 };
+  var capturedAtStart = 0;      // para saber o que abriu durante esta partida
 
+  /* Os dois modos de fila (Prática e Deck) consomem uma lista pronta e acabam
+   * quando ela acaba. A diferença é a ordem: Prática segue o agendamento —
+   * o que vence hoje; Deck segue o tropeço — o que mais escapa de você. */
   var MODES = {
     classic:  { label: "Clássico", lives: 3, endless: true },
     zen:      { label: "Zen",      lives: 0, endless: true },
-    practice: { label: "Prática",  lives: 0, endless: false }
+    practice: { label: "Prática",  lives: 0, endless: false, queue: "practice" },
+    deck:     { label: "Deck",     lives: 0, endless: false, queue: "deck" }
   };
+  function isQueueMode(m) { return !!MODES[m || mode].queue; }
 
   function orderOf() {
     return { themes: Object.keys(window.WORD_THEMES), levels: window.WORD_LEVELS };
@@ -69,11 +77,20 @@
   function buildPool(filters) {
     POOL = TCWordbank.buildPool(window.WORD_THEMES, filters || {
       themes: prefs.themes, levels: prefs.levels
-    });
+    }, window.WORD_EXAMPLES);
     return POOL;
   }
+  /* A fila vem do caderno, e o caderno pode ser mais velho que as frases de
+   * exemplo. Quando a entrada gravada não tem frase, ela vem do banco atual —
+   * assim ninguém precisa recapturar a palavra para ganhar o exemplo. */
+  function queueFor(m) {
+    var rows = MODES[m || mode].queue === "deck" ? TCStore.deckQueue() : TCStore.practiceQueue();
+    var ex = window.WORD_EXAMPLES || {};
+    rows.forEach(function (w) { if (!w.ex && ex[w.text]) w.ex = ex[w.text]; });
+    return rows;
+  }
   function activePoolSize() {
-    if (mode === "practice") return TCStore.practiceQueue().length;
+    if (isQueueMode()) return queueFor().length;
     return buildPool().length;
   }
   function updateStartBtn() { updateCta(); }
@@ -89,11 +106,16 @@
     var c = counts || TCStore.counts();
     var n = activePoolSize();
     var alt = el("altStartBtn");
-    ctaPractice = mode !== "practice" && c.due > 0;
+    ctaPractice = !isQueueMode() && c.due > 0;
 
-    if (mode === "practice") {
-      el("startLabel").textContent = n ? "Revisar " + n + " palavras" : "Nada para revisar";
-      el("ctaHint").textContent = n ? "Modo prática · ~" + minutesFor(n) + " min" : "";
+    if (isQueueMode()) {
+      var deck = mode === "deck";
+      el("startLabel").textContent = n
+        ? (deck ? "Enfrentar " + n + " palavras" : "Revisar " + n + " palavras")
+        : (deck ? "Nada te pegando" : "Nada para revisar");
+      el("ctaHint").textContent = n
+        ? (deck ? "Modo deck · ~" : "Modo prática · ~") + minutesFor(n) + " min"
+        : "";
       startBtn.disabled = n === 0;
       alt.hidden = false;
       alt.textContent = "Partida nova · Clássico";
@@ -133,7 +155,7 @@
   function updateSetupSummary() {
     var v = window.TC_VISUALS[prefs.visual];
     var partes = [MODES[mode].label];
-    if (mode === "practice") partes.push("fila do caderno");
+    if (isQueueMode()) partes.push(mode === "deck" ? "as que te pegam" : "fila do caderno");
     else { partes.push(themeSummary()); partes.push(levelSummary()); }
     if (v) partes.push(v.label);
     el("setupSummary").textContent = partes.join(" · ");
@@ -229,21 +251,36 @@
       }, "chip-level"));
     });
 
+    /* Climas: os dois primeiros nascem abertos, os outros chegam por palavras
+     * digitadas. É a única progressão do jogo — sem moeda, sem loja, e nada
+     * que mude a dificuldade: só coisa bonita para querer alcançar. */
     var visBox = el("visualChips"); visBox.innerHTML = "";
     Object.keys(window.TC_VISUALS).forEach(function (k) {
       var v = window.TC_VISUALS[k];
-      var b = chip(v.label, prefs.visual === k, function () {
+      var open = TCStore.visualUnlocked(k);
+      var b = chip(open ? v.label : v.label + " · " + TCProgress.need(k), prefs.visual === k, function () {
+        if (!open) return prefs.visual === k;
         applyVisual(k); renderConfig(); return true;
-      }, "chip-visual");
+      }, "chip-visual" + (open ? "" : " locked"));
+      if (!open) {
+        b.disabled = true;
+        b.title = "Abre com " + TCProgress.need(k) + " palavras digitadas";
+      }
       var dot = document.createElement("i");
       dot.className = "swatch";
-      dot.style.background = "linear-gradient(135deg," + v.swatch[0] + "," + v.swatch[1] + ")";
+      dot.style.background = open
+        ? "linear-gradient(135deg," + v.swatch[0] + "," + v.swatch[1] + ")"
+        : "";
       b.insertBefore(dot, b.firstChild);
       visBox.appendChild(b);
     });
+    var next = TCStore.nextVisualUnlock(window.TC_VISUALS);
+    el("visualNote").textContent = next
+      ? "Faltam " + next.remaining + " palavras para " + window.TC_VISUALS[next.key].label + "."
+      : "Todos os climas abertos.";
 
     renderPrefChips();
-    el("vocabConfig").hidden = (mode === "practice");
+    el("vocabConfig").hidden = isQueueMode();
     updateSetupSummary();
   }
 
@@ -299,7 +336,8 @@
     var t = {
       classic: "Três vidas. O ritmo acelera a cada nível — o modo de sempre.",
       zen: "Sem vidas, sem fim. Deixe rolando enquanto faz outra coisa.",
-      practice: "A fila de revisão do seu caderno, na ordem em que você está prestes a esquecer."
+      practice: "A fila de revisão do seu caderno, na ordem em que você está prestes a esquecer.",
+      deck: "Só as palavras em que você tropeça. As mais falhadas e as mais antigas vêm primeiro."
     };
     el("modeBlurb").textContent = t[mode];
   }
@@ -310,6 +348,14 @@
     TCAudio.setMood(window.TC_VISUALS[key].audio);
     var meta = q('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", window.TC_VISUALS[key].swatch[1]);
+  }
+
+  /* Opções de exibição que mexem no palco. O tamanho das palavras invalida as
+   * medidas em cache — sem isso, a palavra nova nasceria com a largura antiga
+   * e poderia vazar da área de queda. */
+  function applyDisplayPrefs() {
+    widthCache = {};
+    computeField();
   }
 
   // ---------- Área de jogo ----------
@@ -414,7 +460,7 @@
       run.deckIdx++;
       return w;
     }
-    if (mode === "practice") return nextFromQueue(practiceQueue);
+    if (isQueueMode()) return nextFromQueue(practiceQueue);
     return randomPick();
   }
 
@@ -429,7 +475,7 @@
     var data = nextWord();
     if (!data) return false;
 
-    if (!run.challenge && mode !== "practice") {
+    if (!run.challenge && !isQueueMode()) {
       recent.push(data.text);
       var cap = Math.min(24, (POOL.length / 2) | 0);
       while (recent.length > cap) recent.shift();
@@ -446,13 +492,17 @@
 
     var w = {
       text: data.text, pos: data.pos, def: data.def, pt: data.pt,
-      lvl: data.lvl, theme: data.theme,
+      lvl: data.lvl, theme: data.theme, ex: data.ex || "",
       el: node, letters: node.firstChild.childNodes,
-      x: x, y: -40, typed: 0, typos: 0,
+      x: x, y: -40, typed: 0, typos: 0, startedAt: 0,
       speed: base * (0.85 + rnd() * 0.4)
     };
     node.style.transform = "translate(" + x + "px," + w.y + "px)";
     words.push(w);
+    // "quantas vezes apareceu" é o denominador de toda a estatística por
+    // palavra: sem ele, dois erros em três aparições parecem iguais a dois
+    // erros em trinta.
+    TCStore.recordSeen(w);
     return true;
   }
 
@@ -496,19 +546,24 @@
     learnedCount += 1;
     session.chars += w.text.length;
     learnedRun.push(w);
-    TCStore.recordCapture(w, { typos: w.typos });
+    // tempo de digitação = da primeira tecla à última. O tempo que a palavra
+    // passou caindo não entra: o que interessa medir é a hesitação nos dedos.
+    TCStore.recordCapture(w, {
+      typos: w.typos,
+      ms: w.startedAt ? Date.now() - w.startedAt : 0
+    });
     addCollected(w);
     showDef(w);
     checkGhost();
 
-    if (mode === "practice") practiceDone += 1;
+    if (isQueueMode()) practiceDone += 1;
     else if (mode === "classic" && TCScoring.isLevelUp(learnedCount)) {
       var next = TCScoring.levelFor(learnedCount);
       if (next > level) { level = next; TCAudio.levelUp(); }
       spawnInterval = TCScoring.spawnInterval(level, mode);
     }
     updateHUD();
-    if (mode === "practice") checkPracticeEnd();
+    if (isQueueMode()) checkPracticeEnd();
   }
 
   function miss(w) {
@@ -524,7 +579,7 @@
       lives -= 1;
       updateHUD();
       if (lives <= 0) { finish(); return; }
-    } else if (mode === "practice") {
+    } else if (isQueueMode()) {
       practiceDone += 1;
       updateHUD();
       checkPracticeEnd();
@@ -534,7 +589,7 @@
   }
 
   function checkPracticeEnd() {
-    if (mode === "practice" && !practiceQueue.length && !words.length) finish();
+    if (isQueueMode() && !practiceQueue.length && !words.length) finish();
   }
 
   // ---------- Fantasma do desafio ----------
@@ -589,7 +644,7 @@
       var html = "";
       for (var i = 0; i < 3; i++) html += '<i class="pip' + (i < lives ? "" : " lost") + '"></i>';
       elLives.innerHTML = html;
-    } else if (mode === "practice") {
+    } else if (isQueueMode()) {
       lifeBox.className = "lifebox";
       elLivesLabel.textContent = "Restantes";
       elLives.className = "lives count";
@@ -614,6 +669,12 @@
       var pt = document.createElement("div"); pt.className = "cpt"; pt.textContent = w.pt;
       li.appendChild(pt);
     }
+    // a frase é o que faz a palavra grudar: definição ensina a reconhecer,
+    // frase ensina a usar
+    if (w.ex) {
+      var ex = document.createElement("div"); ex.className = "cx"; ex.textContent = w.ex;
+      li.appendChild(ex);
+    }
     return li;
   }
   /* Durante a partida a lista é só um rastro que se apaga: a palavra e nada
@@ -635,6 +696,9 @@
     var ptEl = q("#defcard .dt");
     ptEl.textContent = w.pt || "";
     ptEl.hidden = !(prefs.showPT && w.pt);
+    var exEl = q("#defcard .dx");
+    exEl.textContent = w.ex || "";
+    exEl.hidden = !(w.ex && prefs.showExample !== false);
     defcard.classList.add("show");
     if (defTimer) clearTimeout(defTimer);
     defTimer = setTimeout(function () { defcard.classList.remove("show"); }, 2600);
@@ -642,7 +706,7 @@
 
   // ---------- Entrada ----------
   function overlayOpen() {
-    return TCNotebook.isOpen() || TCChallengeUI.isOpen() || setupOpen();
+    return TCNotebook.isOpen() || TCChallengeUI.isOpen() || TCOptions.isOpen() || setupOpen();
   }
   function isTyping(e) {
     var t = e.target;
@@ -656,11 +720,19 @@
     blurTouch();
     TCNotebook.open();
   }
+  /* Abrir a engrenagem no meio da partida pausa — mexer no volume enquanto as
+   * palavras caem seria perder três delas para ajustar uma. */
+  function openOptions(tab) {
+    if (running && !over && !paused) pause();
+    blurTouch();
+    TCOptions.open(tab);
+  }
 
   function onKey(e) {
     if (overlayOpen()) {
       if (e.key === "Escape") {
-        if (setupOpen()) closeSetup();
+        if (TCOptions.isOpen()) TCOptions.close();
+        else if (setupOpen()) closeSetup();
         else { TCNotebook.close(); TCChallengeUI.close(); }
       }
       return;
@@ -675,6 +747,7 @@
       if (a === "m") { e.preventDefault(); setPref("music", !prefs.music); return; }
       if (a === "s") { e.preventDefault(); setPref("sfx", !prefs.sfx); return; }
       if (a === "c") { e.preventDefault(); openNotebook(); return; }
+      if (a === "o") { e.preventDefault(); openOptions(); return; }
     }
 
     // Na tela inicial não se digita palavra nenhuma, então ali as letras
@@ -685,6 +758,7 @@
       var hk = (e.key || "").toLowerCase();
       if (hk === "a") { e.preventDefault(); openSetup(); return; }
       if (hk === "c") { e.preventDefault(); openNotebook(); return; }
+      if (hk === "o") { e.preventDefault(); openOptions(); return; }
       return;
     }
 
@@ -713,7 +787,7 @@
         if (target.typed >= target.text.length) capture(target);
       } else {
         target.typos += 1;
-        if (!reduce) {
+        if (!reduceMotion()) {
           target.el.classList.remove("shake");
           void target.el.offsetWidth;
           target.el.classList.add("shake");
@@ -727,6 +801,7 @@
     }
     if (cand) {
       session.correctKeys += 1;
+      cand.startedAt = Date.now();
       setTarget(cand); cand.typed = 1; TCAudio.key(); paintWord(cand);
       if (cand.text.length <= 1) capture(cand);
     }
@@ -797,7 +872,7 @@
     fpsAccum += dt; fpsSamples++;
     if (fpsSamples >= 120) {
       var fps = fpsSamples / fpsAccum;
-      if (fps < 50 && quality > 0.4) {
+      if (fps < 50 && quality > 0.4 && TCBackdrop.isAdaptive()) {
         quality = Math.max(0.4, quality - 0.2);
         TCBackdrop.setQuality(quality);
       }
@@ -808,7 +883,7 @@
 
     TCBackdrop.draw(dt, now);
 
-    var canSpawn = mode !== "practice" || practiceQueue.length > 0;
+    var canSpawn = !isQueueMode() || practiceQueue.length > 0;
     if (canSpawn && now - lastSpawn > spawnInterval && words.length < TCScoring.maxOnScreen(mode)) {
       spawn();
       lastSpawn = now;
@@ -860,8 +935,8 @@
       run.deck = TCRng.buildDeck(pool, run.rng, TCScoring.maxOnScreen(mode));
       return run.deck.length > 0;
     }
-    if (mode === "practice") {
-      practiceQueue = TCStore.practiceQueue();
+    if (isQueueMode()) {
+      practiceQueue = queueFor();
       practiceTotal = practiceQueue.length;
       return practiceTotal > 0;
     }
@@ -876,6 +951,7 @@
     TCAudio.setMusic(prefs.music); TCAudio.setSfx(prefs.sfx);
     TCSpeech.setEnabled(prefs.speak);
     TCStore.touchDay();
+    capturedAtStart = stats.captured || 0;
 
     reset();
     computeField();          // o HUD muda de altura conforme o modo
@@ -953,12 +1029,27 @@
     el("overTitle").textContent = TCScoring.runTitle(mode, learnedCount);
     el("overKicker").textContent = run.challenge
       ? (run.challenge.daily ? "Desafio do dia" : "Desafio")
-      : (mode === "practice" ? "Caderno em dia" : (mode === "zen" ? "Modo zen" : "O fogo baixou"));
+      : (mode === "deck" ? "Deck do dia" : (mode === "practice" ? "Caderno em dia" : (mode === "zen" ? "Modo zen" : "O fogo baixou")));
 
     renderOverChallenge(result);
+    renderUnlocks();
     renderRecap();
     overScreen.removeAttribute("hidden");
     refreshHeader();
+  }
+
+  /* Clima novo aberto no meio da partida vira uma linha aqui — descobrir por
+   * acaso, dias depois, é desperdiçar a única recompensa que o jogo tem. */
+  function renderUnlocks() {
+    var box = el("overUnlock");
+    var novos = TCProgress.unlockedBetween(capturedAtStart, stats.captured || 0)
+      .filter(function (k) { return !!window.TC_VISUALS[k]; });
+    capturedAtStart = stats.captured || 0;
+    if (!novos.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.textContent = novos.length === 1
+      ? "✦ Clima novo aberto: " + window.TC_VISUALS[novos[0]].label
+      : "✦ Climas novos: " + novos.map(function (k) { return window.TC_VISUALS[k].label; }).join(" · ");
   }
 
   function renderRecap() {
@@ -1051,13 +1142,21 @@
     el("homeMastered").textContent = c.mastered;
 
     var streak = stats.streak || 0;
+    var frozen = TCStore.streakFrozenToday();
     el("homeStreak").textContent = streak;
     el("homeStreakBox").hidden = streak < 1;
+    el("homeStreakBox").classList.toggle("frozen", frozen);
+    // faltar um dia congela a ofensiva; dizer isso é melhor que fingir que
+    // os dias pulados nunca existiram
+    el("streakWord").textContent = frozen ? "dias congelados ❄" : "dias seguidos";
 
     var veterano = c.total > 0;
     el("homeNew").hidden = veterano;
     el("homeVet").hidden = !veterano;
-    q(".homebar").hidden = !veterano;
+    // A barra do topo fica, mesmo para quem chega agora: some só o wordmark,
+    // que seria repetição do título grande. Escondê-la inteira levava junto a
+    // engrenagem, e um jogador novo ficava sem caminho nenhum até as opções.
+    q(".wordmark").hidden = !veterano;
     if (!veterano) howOpen = true;      // quem nunca jogou lê as regras de graça
     el("howBox").hidden = !howOpen;
     el("howBtn").setAttribute("aria-expanded", howOpen ? "true" : "false");
@@ -1087,6 +1186,37 @@
     updateSetupSummary();
   }
 
+  // ---------- Virar aplicativo ----------
+  /* Instalar pelo próprio navegador dá o que o empacotamento desktop daria —
+   * ícone, janela sem abas, funcionar offline — sem instalador, sem loja e sem
+   * segunda base de código. O botão só aparece quando o navegador diz que dá.
+   *
+   * Nada disso funciona abrindo o arquivo direto (file://): service worker
+   * exige http(s). Abrir o index.html no dedo continua funcionando, só não
+   * instala — e é por isso que a falha aqui é silenciosa. */
+  function setupInstall() {
+    var btn = el("installBtn");
+    var prompt = null;
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      prompt = e;
+      btn.hidden = false;
+    });
+    btn.addEventListener("click", function () {
+      if (!prompt) return;
+      prompt.prompt();
+      prompt.userChoice.then(function () { prompt = null; btn.hidden = true; });
+    });
+    window.addEventListener("appinstalled", function () { btn.hidden = true; });
+
+    if (!("serviceWorker" in navigator)) return;
+    if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () { /* sem offline, o jogo roda igual */ });
+    });
+  }
+
   // ---------- Ligações ----------
   function bind() {
     startBtn.addEventListener("click", function () {
@@ -1095,8 +1225,8 @@
     // O caminho secundário é sempre a partida normal: quando a ação
     // primária virou "revisar", é por aqui que se joga.
     el("altStartBtn").addEventListener("click", function () {
-      if (mode === "practice") {
-        mode = (MODES[prefs.mode] && prefs.mode !== "practice") ? prefs.mode : "classic";
+      if (isQueueMode()) {
+        mode = (MODES[prefs.mode] && !MODES[prefs.mode].queue) ? prefs.mode : "classic";
         renderConfig(); updateModeBlurb(); updateStartBtn();
       }
       start(null);
@@ -1123,6 +1253,21 @@
     ptBtn.addEventListener("click", function () { setPref("showPT", !prefs.showPT); });
 
     el("notebookBtn").addEventListener("click", openNotebook);
+    el("optionsBtn").addEventListener("click", function () { openOptions(); });
+    el("optionsBtn2").addEventListener("click", function () { openOptions(); });
+    el("optionsBtn3").addEventListener("click", function () { openOptions(); });
+
+    TCOptions.mount();
+    TCOptions.onOpenSetup = openSetup;
+    TCOptions.onOpenNotebook = function () { TCNotebook.open(); };
+    TCOptions.onClose = function () { refreshHeader(); syncPrefUI(); };
+    /* Uma opção mexida no menu tem que aparecer no jogo agora, não na próxima
+     * partida: o HUD, o palco e a tela inicial se reajustam na hora. */
+    TCOptions.onChange = function (key) {
+      if (key === "wordScale" || key === "showCollected") applyDisplayPrefs();
+      if (key === "dailyGoal" || key === "notebook") refreshHeader();
+      syncPrefUI();
+    };
     el("allThemesBtn").addEventListener("click", function () {
       setThemes(Object.keys(window.WORD_THEMES));
     });
@@ -1134,8 +1279,9 @@
       TCChallengeUI.open(run.challenge || null);
     });
 
-    TCNotebook.onPractice = function () {
-      mode = "practice"; prefs.mode = "practice"; TCStore.savePrefs();
+    TCNotebook.onPractice = function (which) {
+      var m = which === "deck" ? "deck" : "practice";
+      mode = m; prefs.mode = m; TCStore.savePrefs();
       renderConfig(); updateModeBlurb(); updateStartBtn();
       if (activePoolSize()) start(null); else toStart();
     };
@@ -1155,6 +1301,7 @@
     });
 
     window.addEventListener("keydown", onKey);
+    setupInstall();
 
     var resizeTimer = null;
     window.addEventListener("resize", function () {
@@ -1202,6 +1349,8 @@
     TCBackdrop.attach(el("bg"));
     computeField();
     TCNotebook.mount();
+    TCOptions.mount();
+    TCOptions.applyAll();          // qualidade, movimento, volumes e exibição
     applyVisual(window.TC_VISUALS[prefs.visual] ? prefs.visual : "ember");
     TCSpeech.setEnabled(prefs.speak);
 

@@ -30,17 +30,21 @@
     return learnedCount > 0 && learnedCount % WORDS_PER_LEVEL === 0;
   }
 
+  /* Os modos de fila (Prática e Deck) andam no mesmo ritmo: quem está
+   * revisando precisa de tempo para lembrar, não de pressão. */
+  function isQueueMode(mode) { return mode === "practice" || mode === "deck"; }
+
   /* Intervalo entre palavras, em milissegundos. */
   function spawnInterval(level, mode) {
     if (mode === "zen") return 2400;
-    if (mode === "practice") return 2000;
+    if (isQueueMode(mode)) return 2000;
     return Math.max(950, 2100 - level * 150);
   }
 
   /* Velocidade de queda em px/s, antes da variação aleatória. */
   function fallSpeed(level, mode) {
     if (mode === "zen") return 20;
-    if (mode === "practice") return 24;
+    if (isQueueMode(mode)) return 24;
     return 22 + (Math.min(MAX_LEVEL, level) - 1) * 4.5;
   }
 
@@ -66,6 +70,7 @@
   /* Título da tela final, por desempenho. */
   function runTitle(mode, learnedCount) {
     if (mode === "practice") return "Revisão concluída";
+    if (mode === "deck") return "Deck limpo";
     if (mode === "zen") return "Sessão encerrada";
     if (learnedCount >= 24) return "Vocabulário radiante";
     if (learnedCount >= 12) return "Bela coleta";
@@ -76,6 +81,7 @@
   return {
     WORDS_PER_LEVEL: WORDS_PER_LEVEL,
     MAX_LEVEL: MAX_LEVEL,
+    isQueueMode: isQueueMode,
     capturePoints: capturePoints,
     levelFor: levelFor,
     isLevelUp: isLevelUp,

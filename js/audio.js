@@ -14,10 +14,23 @@ window.TCAudio = (function () {
   "use strict";
 
   var AC = null, master = null, reverb = null, wet = null;
-  var musicBus = null, melodyGain = null, padGain = null, padFilter = null, lfo = null;
+  var musicBus = null, sfxBus = null, melodyGain = null, padGain = null, padFilter = null, lfo = null;
   var padVoices = [], rainSrc = null, rainGain = null, rainFilter = null;
   var chordIdx = 0, nextNoteTime = 0, schedTimer = null, chordTimer = null;
   var musicOn = true, sfxOn = true, started = false;
+
+  /* Música e efeitos têm barramentos separados porque o menu de opções tem
+   * dois cursores. MUSIC_TOP e SFX_TOP são o volume "no talo": o cursor é um
+   * multiplicador de 0 a 1 em cima deles, nunca um ganho solto. */
+  var MUSIC_TOP = 0.9, SFX_TOP = 1.0;
+  var musicVol = 0.7, sfxVol = 0.8;
+
+  function clamp01(v) {
+    var n = typeof v === "number" ? v : parseFloat(v);
+    if (!(n >= 0)) return 0;
+    return n > 1 ? 1 : n;
+  }
+  function musicTarget() { return musicOn ? MUSIC_TOP * musicVol : 0; }
 
   // clima atual (sobrescrito por setMood)
   var mood = {
@@ -113,14 +126,14 @@ window.TCAudio = (function () {
     }
   }
 
-  function bell(freq, when, vol, dur) {
+  function bell(freq, when, vol, dur, bus) {
     var o = AC.createOscillator(), g = AC.createGain();
     o.type = "sine"; o.frequency.value = freq;
     g.gain.setValueAtTime(0.0001, when);
     g.gain.exponentialRampToValueAtTime(vol, when + 0.015);
     g.gain.exponentialRampToValueAtTime(0.0001, when + (dur || 1.9));
     o.connect(g);
-    g.connect(melodyGain);                    // seco
+    g.connect(bus || melodyGain);             // seco
     var send = AC.createGain(); send.gain.value = 0.5;
     g.connect(send); send.connect(wet);       // com reverb
     o.start(when); o.stop(when + (dur || 1.9) + 0.05);
@@ -153,8 +166,15 @@ window.TCAudio = (function () {
     wet = AC.createGain(); wet.gain.value = 0.9;
     reverb.connect(wet); wet.connect(master);
 
-    musicBus = AC.createGain(); musicBus.gain.value = musicOn ? 0.9 : 0.0;
+    musicBus = AC.createGain(); musicBus.gain.value = musicTarget();
     musicBus.connect(master);
+
+    // os efeitos não passam pelo barramento da música: assim dá para deixar a
+    // trilha baixinha e continuar ouvindo a tecla, ou o contrário
+    sfxBus = AC.createGain(); sfxBus.gain.value = sfxVol * SFX_TOP;
+    sfxBus.connect(master);
+    var sfxSend = AC.createGain(); sfxSend.gain.value = 0.35;
+    sfxBus.connect(sfxSend); sfxSend.connect(reverb);
     // um pouco de tudo também vai pro reverb, dando profundidade
     var ambSend = AC.createGain(); ambSend.gain.value = 0.3;
     musicBus.connect(ambSend); ambSend.connect(reverb);
@@ -212,15 +232,15 @@ window.TCAudio = (function () {
     var t = AC.currentTime;
     g.gain.setValueAtTime(0.05, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(sfxBus || master);
     o.start(t); o.stop(t + 0.06);
   }
   function capture() {
     if (!sfxOn || !AC) return;
     var i = (Math.random() * (mood.scale.length - 1)) | 0;
     var t = AC.currentTime;
-    bell(mood.scale[i], t, 0.16, 1.4);
-    bell(mood.scale[i + 1], t + 0.09, 0.14, 1.6);
+    bell(mood.scale[i], t, 0.16, 1.4, sfxBus);
+    bell(mood.scale[i + 1], t + 0.09, 0.14, 1.6, sfxBus);
   }
   function miss() {
     if (!sfxOn || !AC) return;
@@ -230,30 +250,49 @@ window.TCAudio = (function () {
     o.frequency.exponentialRampToValueAtTime(90, t + 0.3);
     g.gain.setValueAtTime(0.16, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
-    o.connect(g); g.connect(master);
+    o.connect(g); g.connect(sfxBus || master);
     o.start(t); o.stop(t + 0.36);
   }
   function levelUp() {
     if (!sfxOn || !AC) return;
     var t = AC.currentTime;
-    bell(mood.scale[0], t, 0.13, 1.2);
-    bell(mood.scale[2], t + 0.11, 0.13, 1.3);
-    bell(mood.scale[4], t + 0.22, 0.13, 1.6);
+    bell(mood.scale[0], t, 0.13, 1.2, sfxBus);
+    bell(mood.scale[2], t + 0.11, 0.13, 1.3, sfxBus);
+    bell(mood.scale[4], t + 0.22, 0.13, 1.6, sfxBus);
   }
 
   // -------- controles --------
   function setMusic(on) {
-    musicOn = on;
+    musicOn = !!on;
     if (musicBus && AC) {
-      musicBus.gain.linearRampToValueAtTime(on ? 0.9 : 0.0, AC.currentTime + 0.4);
+      musicBus.gain.linearRampToValueAtTime(musicTarget(), AC.currentTime + 0.4);
     }
   }
-  function setSfx(on) { sfxOn = on; }
+  function setSfx(on) { sfxOn = !!on; }
+
+  /* Cursores do menu de opções, de 0 a 1. Rampa curta em vez de salto: mexer
+   * no cursor durante a partida não pode estalar no fone. */
+  function setMusicVolume(v) {
+    musicVol = clamp01(v);
+    if (musicBus && AC) {
+      musicBus.gain.linearRampToValueAtTime(musicTarget(), AC.currentTime + 0.15);
+    }
+    return musicVol;
+  }
+  function setSfxVolume(v) {
+    sfxVol = clamp01(v);
+    if (sfxBus && AC) {
+      sfxBus.gain.linearRampToValueAtTime(sfxVol * SFX_TOP, AC.currentTime + 0.15);
+    }
+    return sfxVol;
+  }
+  function volumes() { return { music: musicVol, sfx: sfxVol, musicOn: musicOn, sfxOn: sfxOn }; }
 
   return {
     init: init, resume: resume, setMood: setMood,
     key: key, capture: capture, miss: miss, levelUp: levelUp,
-    setMusic: setMusic, setSfx: setSfx
+    setMusic: setMusic, setSfx: setSfx,
+    setMusicVolume: setMusicVolume, setSfxVolume: setSfxVolume, volumes: volumes
   };
 })();
 

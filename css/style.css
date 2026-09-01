@@ -59,7 +59,7 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
   border: 1px solid var(--word-border);
   backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
   font-family: var(--mono); font-weight: 500;
-  font-size: clamp(1.25rem, 2.5vw, 1.95rem); line-height: 1;
+  font-size: calc(clamp(1.25rem, 2.5vw, 1.95rem) * var(--word-scale, 1)); line-height: 1;
   letter-spacing: .01em; white-space: nowrap;
   color: var(--muted); opacity: .9;
   transition: transform .18s cubic-bezier(.2,.9,.3,1.3), opacity .35s ease,
@@ -276,8 +276,10 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
 }
 .card-home > * + * { margin-top: 22px }
 
-.homebar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px }
+.homebar { display: flex; align-items: center; justify-content: space-between; gap: 16px }
 .homebar[hidden] { display: none }
+.wordmark[hidden] { display: none }
+.homebar .homebarend { margin-left: auto }
 .wordmark { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; letter-spacing: .01em }
 .wordmark .dot { color: var(--accent) }
 .streakline {
@@ -721,4 +723,164 @@ body.is-touch .toolhint { display: block }
   #clist li { animation: none }
   .btn:hover { transform: none }
   .bartrack > i { transition: none }
+}
+
+/* Frase de exemplo. Aparece no cartão da captura, no resumo do fim e no
+   caderno: é o contexto que faz a palavra grudar, então tem lugar fixo. */
+.cx {
+  font-family: var(--serif); font-size: .84rem; line-height: 1.45;
+  color: var(--faint); margin-top: 5px; padding-left: 9px;
+  border-left: 1px solid var(--border);
+}
+#defcard .dx {
+  font-family: var(--serif); font-size: clamp(.86rem, 1.9vw, 1rem);
+  color: var(--faint); margin: 10px auto 0; max-width: 44ch; line-height: 1.5;
+}
+#defcard .dx[hidden] { display: none }
+
+/* Clima ainda fechado: continua visível (é o que dá o que perseguir), mas
+   sem cor e sem clique. */
+.chip-visual.locked { opacity: .45; cursor: default; filter: grayscale(1) }
+.chip-visual.locked .swatch {
+  background: transparent; border-style: dashed;
+}
+.chip-visual.locked:hover { border-color: var(--border); color: var(--faint) }
+
+.unlockline {
+  font-family: var(--mono); font-size: .74rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--gold); margin: 14px 0 0;
+}
+.unlockline[hidden] { display: none }
+
+.streakline.frozen b { color: var(--accent-2) }
+
+/* ---------- Gráfico de evolução ---------- */
+.evolution { margin: 18px 0 6px; text-align: left }
+.evolution[hidden] { display: none }
+.chartbox {
+  margin-top: 8px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--field); padding: 10px 8px 6px;
+}
+.chartbox svg { display: block; width: 100%; height: 120px }
+.chartbox polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke }
+.chartbox .linewpm { stroke: var(--accent) }
+.chartbox .lineacc { stroke: var(--faint); stroke-dasharray: 3 4 }
+.chartlegend {
+  font-family: var(--mono); font-size: .66rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint); margin: 6px 2px 2px;
+}
+.chartlegend .k {
+  display: inline-block; width: 14px; height: 2px; margin: 0 5px 3px 0;
+  vertical-align: middle;
+}
+.chartlegend .kwpm { background: var(--accent) }
+.chartlegend .kacc { background: var(--faint) }
+
+/* ---------- Opções (a engrenagem) ---------- */
+/* A escala das palavras vive aqui para o menu poder mexer numa linha só. */
+:root { --word-scale: 1 }
+
+/* Duas opções de exibição que só apagam coisa da tela. */
+body.hide-collected #collected { display: none }
+body.no-motion .word { transition: opacity .35s ease }
+body.no-motion .word.shake .inner { animation: none }
+body.no-motion .caret { animation: none }
+
+.gearbtn {
+  cursor: pointer; background: none; border: 1px solid var(--border);
+  color: var(--muted); border-radius: 50%; width: 30px; height: 30px;
+  font-size: .9rem; line-height: 1; padding: 0; flex: none;
+  transition: color .18s, border-color .18s, transform .3s ease;
+}
+.gearbtn:hover { color: var(--text); border-color: var(--border-hi); transform: rotate(60deg) }
+.gearbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.homebarend { display: flex; align-items: center; gap: 12px }
+
+.card-options { width: min(660px, 96vw); text-align: left }
+.opttabs {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.opttab {
+  cursor: pointer; background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 9px 13px; margin-bottom: -1px;
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+  transition: color .18s, border-color .18s;
+}
+.opttab:hover { color: var(--text) }
+.opttab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent) }
+.opttab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px }
+
+.optbody { display: flex; flex-direction: column }
+.optrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 15px 2px; border-bottom: 1px solid var(--border);
+}
+.optrow:last-child { border-bottom: 0 }
+.opttext { display: flex; flex-direction: column; gap: 3px; min-width: 0 }
+.optlabel { font-family: var(--serif); font-size: 1.02rem; color: var(--text) }
+.opthint { font-family: var(--serif); font-size: .82rem; color: var(--faint); line-height: 1.35 }
+
+.switch {
+  cursor: pointer; flex: none; min-width: 104px;
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase; padding: 9px 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--field); color: var(--faint);
+  transition: color .18s, border-color .18s, background .18s, box-shadow .18s;
+}
+.switch[aria-checked="true"] {
+  background: var(--word-bg-on); color: var(--text); border-color: var(--accent);
+  box-shadow: 0 0 16px var(--word-glow);
+}
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.optseg { display: flex; flex-wrap: wrap; gap: 4px; flex: none; justify-content: flex-end }
+.seg {
+  cursor: pointer; font-family: var(--mono); font-size: .68rem;
+  padding: 8px 11px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--field); color: var(--faint);
+  transition: color .18s, border-color .18s, background .18s;
+}
+.seg:hover { color: var(--text) }
+.seg[aria-checked="true"] {
+  background: var(--word-bg-on); color: var(--text);
+  border-color: var(--accent); font-weight: 700;
+}
+.seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+
+.optslider { display: flex; align-items: center; gap: 12px; flex: none }
+.optslider input[type="range"] {
+  -webkit-appearance: none; appearance: none; width: min(190px, 42vw);
+  height: 4px; border-radius: 999px; background: var(--border); outline: none;
+}
+.optslider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+  border: 2px solid var(--card-bg, transparent);
+}
+.optslider input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border: 0; border-radius: 50%;
+  background: var(--accent); cursor: pointer;
+}
+.optslider input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px }
+.optvalue {
+  font-family: var(--mono); font-size: .72rem; color: var(--muted);
+  min-width: 5.5ch; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+.optinput {
+  flex: none; width: min(190px, 42vw);
+  font-family: var(--mono); font-size: .82rem; color: var(--text);
+  background: var(--field); border: 1px solid var(--border);
+  border-radius: 10px; padding: 9px 12px;
+}
+.optinput:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.btn.small { padding: 10px 18px; font-size: .7rem; border-radius: 10px; flex: none }
+
+@media (max-width: 560px) {
+  .optrow { flex-direction: column; align-items: flex-start; gap: 10px }
+  .optseg, .optslider, .switch, .optinput, .btn.small { align-self: stretch }
+  .optseg { justify-content: flex-start }
+  .optslider input[type="range"] { width: 100% }
 }

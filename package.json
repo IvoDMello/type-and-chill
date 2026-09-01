@@ -6,8 +6,9 @@
   "scripts": {
     "serve": "node tools/serve.js",
     "test": "node --test \"tests/unit/**/*.test.js\"",
-    "test:e2e": "node --test --test-timeout=180000 \"tests/e2e/**/*.test.js\"",
-    "test:all": "npm test && npm run test:e2e"
+    "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"tests/**\" --test-coverage-exclude=\"js/words.js\" --test-coverage-exclude=\"js/examples.js\" --test-coverage-lines=85 --test-coverage-branches=85 --test-coverage-functions=85 \"tests/unit/**/*.test.js\"",
+    "test:e2e": "node --test --test-timeout=240000 \"tests/e2e/**/*.test.js\"",
+    "test:all": "npm run coverage && npm run test:e2e"
   },
   "devDependencies": {
     "puppeteer-core": "^24.10.0"

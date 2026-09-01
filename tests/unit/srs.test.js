@@ -117,3 +117,42 @@ test("review não muta o estado que recebeu", () => {
   srs.review(s, 5, T0);
   assert.deepStrictEqual(s, copia);
 });
+
+/* ---------- Fragilidade ----------
+ * O agendamento diz quando rever; a fragilidade diz o que mais dói. É ela que
+ * ordena a lista "as que te pegam" e a fila do modo Deck. */
+
+test("deixar cair pesa mais que errar tecla", () => {
+  const caiu = { text: "caiu", hits: 1, misses: 3, typos: 0, srs: srs.fresh(T0) };
+  const errou = { text: "errou", hits: 3, misses: 0, typos: 3, srs: srs.fresh(T0) };
+  assert.ok(srs.fragility(caiu, T0) > srs.fragility(errou, T0));
+});
+
+test("palavra dominada é menos frágil que palavra nova", () => {
+  let forte = srs.fresh(T0);
+  for (let i = 0; i < 4; i++) forte = srs.review(forte, 5, T0);
+  const dominada = { text: "forte", hits: 4, misses: 0, typos: 0, srs: forte };
+  const nova = { text: "nova", hits: 0, misses: 1, typos: 0, srs: srs.fresh(T0) };
+  assert.ok(srs.fragility(dominada, T0) < srs.fragility(nova, T0));
+});
+
+test("hesitar ao digitar conta como fragilidade", () => {
+  const base = { text: "a", hits: 2, misses: 0, typos: 0, srs: srs.fresh(T0) };
+  const lenta = Object.assign({}, base, { avgMs: 12000 });
+  assert.ok(srs.fragility(lenta, T0) > srs.fragility(base, T0));
+});
+
+test("fragilidade nunca é negativa", () => {
+  let forte = srs.fresh(T0);
+  for (let i = 0; i < 8; i++) forte = srs.review(forte, 5, T0);
+  assert.ok(srs.fragility({ hits: 8, misses: 0, typos: 0, srs: forte }, T0) >= 0);
+});
+
+test("sortByFragility põe a mais falhada na frente e desempata pela mais antiga", () => {
+  const antiga = { text: "antiga", hits: 1, misses: 2, typos: 0, last: T0 - 10 * DAY, srs: srs.fresh(T0) };
+  const recente = { text: "recente", hits: 1, misses: 2, typos: 0, last: T0, srs: srs.fresh(T0) };
+  const leve = { text: "leve", hits: 3, misses: 0, typos: 0, last: T0, srs: srs.fresh(T0) };
+  const ordem = srs.sortByFragility([leve, recente, antiga], T0).map(e => e.text);
+  assert.strictEqual(ordem[0], "antiga");
+  assert.strictEqual(ordem[ordem.length - 1], "leve");
+});

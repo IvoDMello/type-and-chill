@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Type & Chill">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a0e0d"/>
+      <stop offset="1" stop-color="#0c0405"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb266"/>
+      <stop offset="1" stop-color="#ff6a3d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#sky)"/>
+  <circle cx="352" cy="150" r="70" fill="#ffd08a" opacity="0.92"/>
+  <circle cx="322" cy="132" r="66" fill="#2a0e0d"/>
+  <g fill="url(#warm)">
+    <rect x="104" y="286" width="304" height="26" rx="13"/>
+    <rect x="140" y="240" width="44" height="30" rx="9" opacity="0.85"/>
+    <rect x="200" y="240" width="44" height="30" rx="9" opacity="0.7"/>
+    <rect x="260" y="240" width="44" height="30" rx="9" opacity="0.55"/>
+    <rect x="320" y="240" width="44" height="30" rx="9" opacity="0.4"/>
+  </g>
+  <rect x="104" y="352" width="304" height="8" rx="4" fill="#ff6a3d" opacity="0.55"/>
+</svg>

@@ -13,6 +13,7 @@ const { spawn } = require("node:child_process");
 const http = require("node:http");
 const path = require("node:path");
 const fs = require("node:fs");
+const { criarColetor } = require("./coverage.js");
 
 let puppeteer = null;
 try { puppeteer = require("puppeteer-core"); } catch (e) { /* pulado abaixo */ }
@@ -69,6 +70,10 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
   const erros = [];
   const contextos = [];
 
+  /* Mede quanto do JS de interface os testes de fato executam. Sem isto, dava
+   * para apagar metade de um arquivo de UI e ver a bateria inteira passar. */
+  const cobertura = criarColetor(BASE, { ignorar: ["js/words.js", "js/examples.js"] });
+
   /* Cada subteste ganha um contexto anônimo próprio, com armazenamento
    * isolado. Limpar o localStorage e recarregar não bastava: o `pagehide` da
    * página antiga grava o caderno que ainda está em memória, desfazendo a
@@ -81,6 +86,14 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
 
     const page = await ctx.newPage();
     await page.setViewport(janela || { width: 1440, height: 900 });
+    await cobertura.iniciar(page);
+
+    // fechar a página é o último momento em que dá para ler a cobertura dela
+    const fecharDeVerdade = page.close.bind(page);
+    page.close = async function () {
+      await cobertura.coletar(page);
+      return fecharDeVerdade();
+    };
 
     if (prepararArmazenamento) {
       // semeia numa página vazia da mesma origem: se o app já tivesse
@@ -141,19 +154,24 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     assert.match(nota, /\d+ palavras neste sorteio/);
 
     const modos = await page.$$eval("#modeChips .chip", ns => ns.map(n => n.textContent));
-    assert.deepStrictEqual(modos, ["Clássico", "Zen", "Prática"]);
+    assert.deepStrictEqual(modos, ["Clássico", "Zen", "Prática", "Deck"]);
 
     const niveis = await page.$$eval("#levelChips .chip", ns => ns.map(n => n.textContent));
     assert.deepStrictEqual(niveis, ["A2", "B1", "B2", "C1"]);
 
+    // Climas fechados continuam na tela — é o que dá o que perseguir —, e a
+    // ficha mostra o marco que falta. Perfil novo tem só os dois primeiros.
     const climas = await page.$$eval("#visualChips .chip", ns => ns.map(n => n.textContent.trim()));
-    assert.deepStrictEqual(climas, ["Brasa", "Noite lo-fi", "Chuva", "Manhã"]);
+    assert.deepStrictEqual(climas, ["Brasa", "Noite lo-fi", "Chuva · 150", "Manhã · 450", "Aurora · 900"]);
+    const abertos = await page.$$eval("#visualChips .chip", ns => ns.filter(n => !n.disabled).length);
+    assert.strictEqual(abertos, 2, "quem começa escolhe entre dois climas");
     await page.close();
   });
 
   await t.test("trocar de clima repinta a interface inteira", async () => {
     const page = await novaPagina();
-    for (const [i, chave] of [[1, "lofi"], [2, "rain"], [3, "dawn"], [0, "ember"]]) {
+    // só os climas abertos: os outros chegam por palavras digitadas
+    for (const [i, chave] of [[1, "lofi"], [0, "ember"]]) {
       await page.$$eval("#visualChips .chip", (ns, idx) => ns[idx].click(), i);
       await sleep(200);
       const attr = await page.evaluate(() => document.documentElement.getAttribute("data-visual"));
@@ -211,6 +229,8 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
       defVisivel: document.getElementById("defcard").classList.contains("show"),
       traducao: document.querySelector("#defcard .dt").textContent,
       traducaoEscondida: document.querySelector("#defcard .dt").hidden,
+      exemplo: document.querySelector("#defcard .dx").textContent,
+      exemploEscondido: document.querySelector("#defcard .dx").hidden,
       ppm: +document.getElementById("wpm").textContent
     }));
     assert.ok(estado.pontos > 0);
@@ -220,6 +240,11 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     assert.ok(estado.traducao.length > 0, "a tradução em PT devia estar preenchida");
     assert.strictEqual(estado.traducaoEscondida, false);
     assert.ok(estado.ppm > 0, "PPM devia ter sido calculado");
+    // a frase de exemplo é obrigatória no banco: se ela não aparecer aqui, a
+    // palavra chega ao caderno sem o contexto que a faz grudar
+    assert.strictEqual(estado.exemploEscondido, false, "faltou a frase de exemplo");
+    assert.ok(estado.exemplo.toLowerCase().includes(palavra.slice(0, Math.max(4, palavra.length - 2))),
+      `a frase "${estado.exemplo}" não usa a palavra ${palavra}`);
 
     // a gravação é agrupada em 800ms — o caderno não espera o fim da partida
     await sleep(1200);
@@ -227,6 +252,8 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
       JSON.parse(localStorage.getItem("tc.notebook") || "{}"));
     assert.ok(caderno[palavra], "a captura devia ter sido gravada sozinha");
     assert.strictEqual(caderno[palavra].hits, 1);
+    assert.ok(caderno[palavra].seen >= 1, "a aparição da palavra devia ter sido contada");
+    assert.ok(caderno[palavra].msN >= 1, "o tempo de digitação devia ter sido medido");
     assert.ok(caderno[palavra].srs.due > Date.now(), "a palavra devia ter sido reagendada");
     // palavras que caíram durante o teste também entram, como erro — é o
     // comportamento desejado: o que escapou é o que mais precisa de revisão
@@ -302,6 +329,122 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     await page.waitForSelector("#overScreen:not([hidden])", { timeout: 15000 });
     const titulo = await page.$eval("#overTitle", e => e.textContent);
     assert.strictEqual(titulo, "Revisão concluída");
+    await page.close();
+  });
+
+  await t.test("o caderno mostra a curva de evolução e as que te pegam", async () => {
+    const page = await novaPagina(() => {
+      const agora = Date.now();
+      const hist = [];
+      for (let i = 0; i < 6; i++) {
+        hist.push({ at: agora - (6 - i) * 86400000, mode: "classic", score: 100 + i,
+                    learned: 5, wpm: 30 + i, accuracy: 90 + i, chars: 60, ms: 60000 });
+      }
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.history", JSON.stringify(hist));
+      localStorage.setItem("tc.notebook", JSON.stringify({
+        meadow: {
+          pos: "n", en: "a field of grass and wildflowers", pt: "prado, campina",
+          ex: "Bees move slowly across the meadow.",
+          lvl: "B1", theme: "nature", hits: 1, misses: 3, typos: 4, seen: 6, msSum: 9000, msN: 2,
+          first: agora - 86400000, last: agora - 3600000,
+          srs: { ease: 1.5, interval: 1, reps: 0, lapses: 3, due: agora - 3600000 }
+        },
+        harbor: {
+          pos: "n", en: "a sheltered place where ships stay safely", pt: "porto",
+          ex: "Small boats rocked gently in the harbor.",
+          lvl: "B1", theme: "travel", hits: 3, misses: 0, typos: 0, seen: 3, msSum: 4000, msN: 2,
+          first: agora - 86400000, last: agora,
+          srs: { ease: 2.5, interval: 6, reps: 3, lapses: 0, due: agora + 5 * 86400000 }
+        }
+      }));
+    });
+
+    await page.click("#notebookBtn2");
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+
+    const grafico = await page.evaluate(() => ({
+      visivel: !document.getElementById("nbEvolution").hidden,
+      linhas: document.querySelectorAll("#nbChart svg polyline").length,
+      tendencia: document.getElementById("nbTrend").textContent
+    }));
+    assert.strictEqual(grafico.visivel, true, "seis sessões já são uma curva");
+    assert.strictEqual(grafico.linhas, 2, "uma linha de PPM e uma de precisão");
+    assert.match(grafico.tendencia, /ppm/);
+
+    // a frase de exemplo aparece na linha da palavra
+    const frases = await page.$$eval("#nbList .cx", ns => ns.map(n => n.textContent));
+    assert.ok(frases.some(f => /meadow/.test(f)), "faltou a frase de exemplo no caderno");
+
+    // e o tempo médio de digitação entra no contador da linha
+    const contadores = await page.$$eval("#nbList .nbtally", ns => ns.map(n => n.textContent));
+    assert.ok(contadores.some(c => /4.5s/.test(c)), "faltou o tempo médio: " + contadores.join(" | "));
+
+    await page.select("#nbStatus", "hard");
+    await sleep(200);
+    const pegam = await page.evaluate(() => ({
+      palavras: Array.from(document.querySelectorAll("#nbList .cw")).map(n => n.textContent),
+      botao: document.getElementById("nbPractice").textContent
+    }));
+    assert.deepStrictEqual(pegam.palavras, ["meadow"], "só a palavra que escapa entra na lista");
+    assert.match(pegam.botao, /^Enfrentar/, "o botão vira o deck quando o filtro é esse");
+
+    await page.click("#nbClose");
+    await sleep(150);
+    await page.close();
+  });
+
+  await t.test("o deck traz as que te pegam, não as que vencem hoje", async () => {
+    // Duas palavras no caderno: uma que já escapou duas vezes e outra limpa.
+    // A fila do Deck é ordenada pelo tropeço, então "meadow" vem primeiro —
+    // e "harbor", que nem venceu ainda, nem entra.
+    const page = await novaPagina(() => {
+      const agora = Date.now();
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.notebook", JSON.stringify({
+        meadow: {
+          pos: "n", en: "a field of grass and wildflowers", pt: "prado, campina",
+          lvl: "B1", theme: "nature", hits: 1, misses: 2, typos: 3, seen: 5, msSum: 0, msN: 0,
+          first: agora - 86400000, last: agora - 3600000,
+          srs: { ease: 1.6, interval: 1, reps: 0, lapses: 2, due: agora - 3600000 }
+        },
+        harbor: {
+          pos: "n", en: "a sheltered place where ships stay safely", pt: "porto",
+          lvl: "B1", theme: "travel", hits: 2, misses: 0, typos: 0, seen: 2, msSum: 0, msN: 0,
+          first: agora - 86400000, last: agora,
+          srs: { ease: 2.5, interval: 6, reps: 2, lapses: 0, due: agora + 5 * 86400000 }
+        }
+      }));
+    });
+
+    await page.click("#setupBtn");
+    await page.waitForSelector("#setupScreen:not([hidden])");
+    await page.$$eval("#modeChips .chip", ns => ns[3].click());   // Deck
+    await page.click("#setupDone");
+    await sleep(200);
+
+    const cta = await page.evaluate(() => ({
+      rotulo: document.getElementById("startLabel").textContent,
+      dica: document.getElementById("ctaHint").textContent
+    }));
+    assert.match(cta.rotulo, /^Enfrentar 1 palavras?$/, "só a palavra que escapou entra no deck");
+    assert.match(cta.dica, /Modo deck/);
+
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word", { timeout: 15000 });
+    const hud = await page.evaluate(() => ({
+      modo: document.getElementById("lvl").textContent,
+      rotulo: document.getElementById("livesLabel").textContent
+    }));
+    assert.strictEqual(hud.modo, "Deck");
+    assert.strictEqual(hud.rotulo, "Restantes");
+
+    const alvo = await esperarPalavra(page, null);
+    assert.strictEqual(alvo, "meadow", "o deck ignora a palavra que ninguém errou");
+    await digitar(page, alvo);
+    await page.waitForSelector("#overScreen:not([hidden])", { timeout: 15000 });
+    const titulo = await page.$eval("#overTitle", e => e.textContent);
+    assert.strictEqual(titulo, "Deck limpo");
     await page.close();
   });
 
@@ -603,8 +746,533 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     await page.close();
   });
 
+  /* Cursor de faixa: o Puppeteer não arrasta, então mexemos no valor e
+   * disparamos o mesmo evento que o navegador dispararia. */
+  async function ajustar(page, sel, valor) {
+    await page.$eval(sel, (n, v) => {
+      n.value = String(v);
+      n.dispatchEvent(new Event("input", { bubbles: true }));
+    }, valor);
+    await sleep(60);
+  }
+  function lerPrefs(page) {
+    return page.evaluate(() => JSON.parse(localStorage.getItem("tc.prefs") || "{}"));
+  }
+
+  await t.test("o menu de opções aplica cada ajuste na hora", async () => {
+    const page = await novaPagina();
+    await page.click("#optionsBtn2");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+
+    const abas = await page.$$eval(".opttab", ns => ns.map(n => n.textContent));
+    assert.deepStrictEqual(abas, ["Áudio", "Gráficos", "Exibição", "Jogo", "Dados"]);
+
+    // ---- Áudio ----
+    await page.click('[data-opt="music"] .switch');
+    await page.click('[data-opt="sfx"] .switch');
+    await ajustar(page, '[data-opt="musicVol"] input[type="range"]', 0.35);
+    await ajustar(page, '[data-opt="sfxVol"] input[type="range"]', 0.5);
+    // a pronúncia só aparece onde o navegador tem a API de fala
+    if (await page.$('[data-opt="speak"] .switch')) {
+      await page.click('[data-opt="speak"] .switch');
+      await sleep(150);
+      await page.click('[data-opt="speak"] .switch');
+    }
+    const rotulo = await page.$eval('[data-opt="music"] .switch', n => n.textContent);
+    assert.strictEqual(rotulo, "Desligado", "o interruptor precisa dizer o estado");
+    assert.strictEqual(
+      await page.$eval('[data-opt="musicVol"] .optvalue', n => n.textContent), "35%");
+
+    // ---- Gráficos ----
+    await page.click('.opttab[data-tab="video"]');
+    for (const q of ["high", "medium", "low", "off", "auto"]) {
+      await page.click(`[data-opt="quality"] .seg[data-value="${q}"]`);
+      await sleep(50);
+    }
+    for (const m of ["full", "reduced", "auto"]) {
+      await page.click(`[data-opt="motion"] .seg[data-value="${m}"]`);
+      await sleep(50);
+    }
+    const segMarcado = await page.$$eval('[data-opt="quality"] .seg',
+      ns => ns.filter(n => n.getAttribute("aria-checked") === "true").map(n => n.dataset.value));
+    assert.deepStrictEqual(segMarcado, ["auto"], "só uma opção fica marcada por vez");
+
+    // ---- Exibição ----
+    await page.click('.opttab[data-tab="display"]');
+    await ajustar(page, '[data-opt="wordScale"] input[type="range"]', 1.3);
+    await page.click('[data-opt="showPT"] .switch');
+    await page.click('[data-opt="showExample"] .switch');
+    await page.click('[data-opt="showCollected"] .switch');
+
+    const exibicao = await page.evaluate(() => ({
+      escala: document.documentElement.style.getPropertyValue("--word-scale"),
+      escondeLista: document.body.classList.contains("hide-collected")
+    }));
+    assert.strictEqual(exibicao.escala.trim(), "1.3");
+    assert.strictEqual(exibicao.escondeLista, true, "desligar a lista tem que escondê-la");
+
+    // ---- Jogo ----
+    await page.click('.opttab[data-tab="game"]');
+    await ajustar(page, '[data-opt="dailyGoal"] input[type="range"]', 40);
+    await page.click('[data-opt="name"] input');
+    await page.type('[data-opt="name"] input', "ANA");
+    await sleep(80);
+
+    let prefs = await lerPrefs(page);
+    assert.strictEqual(prefs.music, false);
+    assert.strictEqual(prefs.sfx, false);
+    assert.strictEqual(prefs.musicVol, 0.35);
+    assert.strictEqual(prefs.sfxVol, 0.5);
+    assert.strictEqual(prefs.quality, "auto");
+    assert.strictEqual(prefs.motion, "auto");
+    assert.strictEqual(prefs.wordScale, 1.3);
+    assert.strictEqual(prefs.showPT, true);
+    assert.strictEqual(prefs.showExample, false);
+    assert.strictEqual(prefs.showCollected, false);
+    assert.strictEqual(prefs.dailyGoal, 40);
+    assert.strictEqual(prefs.name, "ANA");
+
+    // a meta nova precisa aparecer na tela inicial sem recarregar nada
+    await page.click("#optDone");
+    await page.waitForFunction(
+      () => /de 40 palavras/.test(document.getElementById("goalText").textContent),
+      { timeout: 8000 });
+
+    // ---- Restaurar padrões ----
+    await page.click("#optionsBtn2");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.click("#optReset");
+    await page.waitForFunction(
+      () => JSON.parse(localStorage.getItem("tc.prefs") || "{}").wordScale === 1,
+      { timeout: 8000 });
+    prefs = await lerPrefs(page);
+    assert.strictEqual(prefs.music, true);
+    assert.strictEqual(prefs.wordScale, 1);
+    assert.strictEqual(prefs.dailyGoal, 20);
+    assert.strictEqual(prefs.showCollected, true);
+    assert.strictEqual(prefs.name, "ANA", "restaurar opções não pode apagar seu apelido");
+    assert.strictEqual(
+      await page.evaluate(() => document.body.classList.contains("hide-collected")), false);
+
+    await page.click("#optClose");
+    await sleep(100);
+    await page.close();
+  });
+
+  await t.test("tela cheia e caminhos de dados do menu de opções", async () => {
+    const page = await novaPagina(() => {
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.notebook", JSON.stringify({
+        meadow: {
+          pos: "n", en: "a field of grass and wildflowers", pt: "prado",
+          ex: "Bees move slowly across the meadow.", lvl: "B1", theme: "nature",
+          hits: 1, misses: 1, typos: 0, seen: 2, msSum: 3000, msN: 1,
+          first: Date.now() - 86400000, last: Date.now(),
+          srs: { ease: 2.2, interval: 1, reps: 1, lapses: 1, due: Date.now() - 1000 }
+        }
+      }));
+    });
+
+    await page.click("#optionsBtn2");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.click('.opttab[data-tab="video"]');
+    // entrar e sair da tela cheia: o navegador pode recusar, e recusar também
+    // é um caminho que precisa não quebrar nada
+    await page.click('[data-opt="fullscreen"] button');
+    await sleep(250);
+    await page.click('[data-opt="fullscreen"] button');
+    await sleep(250);
+
+    // Dados: abrir o caderno pela engrenagem fecha o menu
+    await page.click('.opttab[data-tab="data"]');
+    const linhaDados = await page.$eval('[data-opt="notebook"] .opthint', n => n.textContent);
+    assert.match(linhaDados, /1 palavra guardada/);
+
+    await page.click('[data-opt="notebook"] button');
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+    assert.strictEqual(await page.$eval("#optionsScreen", n => n.hasAttribute("hidden")), true);
+    await page.click("#nbClose");
+    await sleep(120);
+
+    // apagar o caderno pede confirmação — e a confirmação é respeitada
+    page.once("dialog", d => d.dismiss());
+    await page.click("#optionsBtn2");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.click('.opttab[data-tab="data"]');
+    await page.click('[data-opt="clear"] button');
+    await sleep(200);
+    assert.strictEqual(
+      await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("tc.notebook") || "{}")).length),
+      1, "cancelar a confirmação não pode apagar nada");
+
+    page.once("dialog", d => d.accept());
+    await page.click('[data-opt="clear"] button');
+    await page.waitForFunction(
+      () => Object.keys(JSON.parse(localStorage.getItem("tc.notebook") || "{}")).length === 0,
+      { timeout: 8000 });
+
+    await page.click("#optDone");
+    await sleep(100);
+    await page.close();
+  });
+
+  await t.test("a engrenagem pausa a partida", async () => {
+    const page = await novaPagina();
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word");
+
+    await page.click("#optionsBtn");            // engrenagem do rodapé
+    await sleep(250);
+    const durante = await page.evaluate(() => ({
+      opcoes: !document.getElementById("optionsScreen").hasAttribute("hidden"),
+      pausa: !document.getElementById("pauseScreen").hasAttribute("hidden")
+    }));
+    assert.strictEqual(durante.opcoes, true);
+    assert.strictEqual(durante.pausa, true, "mexer nas opções no meio da partida tem que pausar");
+
+    // com as opções abertas, digitar não captura nada por baixo
+    await page.keyboard.press("a");
+    await page.keyboard.press("Escape");
+    await sleep(200);
+    assert.strictEqual(await page.$eval("#optionsScreen", n => n.hasAttribute("hidden")), true);
+    assert.strictEqual(await page.$eval("#pauseScreen", n => n.hasAttribute("hidden")), false,
+      "fechar as opções volta para a pausa, não direto para o jogo");
+
+    // e a engrenagem da tela de pausa abre o mesmo menu
+    await page.click("#optionsBtn3");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.click("#optDone");
+    await sleep(150);
+
+    await page.click("#resumeBtn");
+    await page.waitForSelector("#pauseScreen[hidden]", { timeout: 8000 });
+    await page.close();
+  });
+
+  await t.test("os atalhos de teclado abrem cada tela", async () => {
+    const page = await novaPagina();
+
+    // tela inicial: letra solta é atalho, porque ali não se digita palavra
+    await page.keyboard.press("o");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.keyboard.press("Escape");
+    await sleep(120);
+
+    await page.keyboard.press("a");
+    await page.waitForSelector("#setupScreen:not([hidden])");
+    await page.keyboard.press("Escape");
+    await sleep(120);
+
+    await page.keyboard.press("c");
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+    await page.keyboard.press("Escape");
+    await sleep(120);
+
+    // Enter começa a partida — mas só depois que o banco terminou de carregar
+    await page.waitForFunction(() => !document.getElementById("startBtn").disabled,
+      { timeout: 8000 });
+    await page.keyboard.press("Enter");
+    await page.waitForSelector("#stage .word", { timeout: 15000 });
+
+    // na partida, todo atalho usa Alt — letra solta é sempre digitação
+    const antes = await lerPrefs(page);
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("p");
+    await page.keyboard.press("m");
+    await page.keyboard.press("s");
+    await page.keyboard.up("Alt");
+    await sleep(200);
+    const depois = await lerPrefs(page);
+    assert.strictEqual(depois.showPT, !antes.showPT, "Alt+P alterna a tradução");
+    assert.strictEqual(depois.music, !antes.music, "Alt+M alterna a música");
+    assert.strictEqual(depois.sfx, !antes.sfx, "Alt+S alterna os efeitos");
+
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("o");
+    await page.keyboard.up("Alt");
+    await page.waitForSelector("#optionsScreen:not([hidden])");
+    await page.keyboard.press("Escape");
+    await sleep(120);
+
+    await page.keyboard.down("Alt");
+    await page.keyboard.press("c");
+    await page.keyboard.up("Alt");
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+    await page.keyboard.press("Escape");
+    await sleep(150);
+    await page.close();
+  });
+
+  await t.test("o caderno exporta CSV e conversa com o Anki", async () => {
+    const page = await novaPagina(() => {
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.notebook", JSON.stringify({
+        meadow: {
+          pos: "n", en: "a field of grass and wildflowers", pt: "prado",
+          ex: "Bees move slowly across the meadow.", lvl: "B1", theme: "nature",
+          hits: 2, misses: 1, typos: 1, seen: 4, msSum: 6000, msN: 2,
+          first: Date.now() - 86400000, last: Date.now(),
+          srs: { ease: 2.2, interval: 1, reps: 1, lapses: 1, due: Date.now() - 1000 }
+        },
+        harbor: {
+          pos: "n", en: "a sheltered place where ships stay safely", pt: "porto",
+          ex: "Small boats rocked gently in the harbor.", lvl: "B1", theme: "travel",
+          hits: 3, misses: 0, typos: 0, seen: 3, msSum: 4000, msN: 2,
+          first: Date.now() - 86400000, last: Date.now(),
+          srs: { ease: 2.5, interval: 6, reps: 3, lapses: 0, due: Date.now() + 5 * 86400000 }
+        }
+      }));
+    });
+
+    await page.click("#notebookBtn2");
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+
+    // filtros: busca, tema, nível e situação
+    await page.type("#nbSearch", "porto");
+    await sleep(200);
+    assert.deepStrictEqual(await page.$$eval("#nbList .cw", ns => ns.map(n => n.textContent)), ["harbor"]);
+    await page.$eval("#nbSearch", n => { n.value = ""; n.dispatchEvent(new Event("input", { bubbles: true })); });
+    await sleep(150);
+    await page.select("#nbTheme", "nature");
+    await sleep(150);
+    assert.deepStrictEqual(await page.$$eval("#nbList .cw", ns => ns.map(n => n.textContent)), ["meadow"]);
+    await page.select("#nbTheme", "");
+    await page.select("#nbLevel", "B1");
+    await sleep(150);
+    assert.strictEqual((await page.$$eval("#nbList .cw", ns => ns.length)), 2);
+    await page.select("#nbStatus", "mastered");
+    await sleep(150);
+    assert.match(await page.$eval("#nbEmpty", n => n.textContent), /Nenhuma palavra/);
+    await page.select("#nbStatus", "");
+    await page.select("#nbLevel", "");
+    await sleep(150);
+
+    // CSV: em vez de baixar de verdade, escutamos o clique no link
+    await page.evaluate(() => {
+      window.__baixado = null;
+      const original = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        window.__baixado = { nome: this.download, href: String(this.href).slice(0, 5) };
+        return original ? undefined : undefined;
+      };
+    });
+    await page.click("#nbExport");
+    await sleep(250);
+    const baixado = await page.evaluate(() => window.__baixado);
+    assert.ok(baixado, "o CSV nem chegou a ser oferecido");
+    assert.strictEqual(baixado.nome, "type-and-chill-caderno.csv");
+    assert.strictEqual(baixado.href, "blob:");
+
+    // Anki com o add-on respondendo: o botão conta quantas notas entraram
+    await page.evaluate(() => {
+      window.__pedidos = [];
+      window.fetch = function (url, opcoes) {
+        window.__pedidos.push(JSON.parse(opcoes.body).action);
+        const acao = JSON.parse(opcoes.body).action;
+        const resultado = acao === "addNotes" ? [111, null] : null;
+        return Promise.resolve({ json: () => Promise.resolve({ result: resultado, error: null }) });
+      };
+    });
+    await page.click("#nbAnki");
+    await sleep(400);
+    const pedidos = await page.evaluate(() => window.__pedidos);
+    assert.deepStrictEqual(pedidos, ["createDeck", "addNotes"], "cria o baralho antes de mandar as notas");
+    assert.match(await page.$eval("#nbAnki", n => n.textContent), /1 no Anki · 1 já lá/);
+
+    // Anki fechado: explica o que fazer em vez de falhar calado.
+    // O botão só volta a aceitar clique quando termina de mostrar o resultado
+    // do envio anterior — por isso a espera.
+    await page.waitForFunction(() => !document.getElementById("nbAnki").disabled,
+      { timeout: 8000 });
+    await page.evaluate(() => {
+      window.fetch = function () { return Promise.reject(new Error("Failed to fetch")); };
+    });
+    let aviso = null;
+    page.once("dialog", async d => { aviso = d.message(); await d.accept(); });
+    await page.click("#nbAnki");
+    await sleep(600);
+    assert.ok(aviso && /AnkiConnect/.test(aviso), "o aviso precisa dizer o que fazer: " + aviso);
+    assert.match(aviso, /webCorsOriginList/);
+
+    await page.click("#nbClose");
+    await sleep(150);
+    await page.close();
+  });
+
+  await t.test("desafio do dia, cópia do código e apelido", async () => {
+    const page = await novaPagina();
+    await page.click("#challengeBtn");
+    await page.waitForSelector("#challengeScreen:not([hidden])");
+
+    await page.click("#chDaily");
+    await sleep(200);
+    const diario = await page.evaluate(() => ({
+      codigo: document.getElementById("chCode").textContent,
+      dia: document.getElementById("chDay").textContent,
+      diaVisivel: !document.getElementById("chDay").hidden,
+      titulo: document.getElementById("chTitle").textContent
+    }));
+    assert.match(diario.codigo, /^TC1-/);
+    assert.strictEqual(diario.titulo, "Desafio do dia");
+    assert.strictEqual(diario.diaVisivel, true);
+    assert.match(diario.dia, /^\d{4}-\d{2}-\d{2}$/);
+
+    // copiar pela API da área de transferência
+    await page.evaluate(() => {
+      window.__copiado = null;
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: t => { window.__copiado = t; return Promise.resolve(); } }
+      });
+    });
+    await page.click("#chCopy");
+    await sleep(250);
+    assert.strictEqual(await page.evaluate(() => window.__copiado), diario.codigo);
+    assert.match(await page.$eval("#chNote", n => n.textContent), /copiado/i);
+
+    // e quando ela falha, o caminho antigo (textarea + execCommand) assume
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new Error("bloqueado")) }
+      });
+    });
+    await page.click("#chCopy");
+    await sleep(300);
+    assert.ok((await page.$eval("#chNote", n => n.textContent)).length > 0);
+
+    // apelido: entra saneado e reaparece no placar
+    await page.click("#chName");
+    await page.type("#chName", "a n a  do  grupo");
+    await page.$eval("#chName", n => n.dispatchEvent(new Event("change", { bubbles: true })));
+    await sleep(200);
+    const apelido = await page.$eval("#chName", n => n.value);
+    assert.strictEqual(apelido, apelido.toUpperCase(), "o apelido é padronizado em maiúsculas");
+    assert.ok(apelido.length <= 12);
+
+    // Enter no campo do código faz o mesmo que o botão
+    await page.click("#chJoinInput");
+    await page.type("#chJoinInput", "TC1-NAO-SERVE");
+    await page.keyboard.press("Enter");
+    await sleep(200);
+    assert.match(await page.$eval("#chNote", n => n.textContent), /não reconhecido/i);
+
+    await page.click("#chClose");
+    await sleep(150);
+    await page.close();
+  });
+
+  await t.test("abrir um clima novo aparece no fim da partida", async () => {
+    // uma palavra antes do marco de 150: a captura desta partida abre o clima
+    const page = await novaPagina(() => {
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.stats", JSON.stringify({
+        best: 10, bestZen: 0, bestCombo: 3, captured: 149, missed: 0, sessions: 4,
+        playedMs: 60000, keystrokes: 100, correctKeys: 100, chars: 100,
+        streak: 1, bestStreak: 2, lastDay: "", todayCount: 0, freezes: 0, frozenDay: ""
+      }));
+    });
+
+    // no Zen a partida não acaba sozinha: encerramos pela tela de pausa
+    await page.click("#setupBtn");
+    await page.waitForSelector("#setupScreen:not([hidden])");
+    await page.$$eval("#modeChips .chip", ns => ns[1].click());
+    await page.click("#setupDone");
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word", { timeout: 15000 });
+
+    const palavra = await esperarPalavra(page, null);
+    await digitar(page, palavra);
+
+    await page.keyboard.press("Escape");        // pausa
+    await page.waitForSelector("#pauseScreen:not([hidden])");
+    await page.click("#endBtn");
+    await page.waitForSelector("#overScreen:not([hidden])", { timeout: 15000 });
+
+    const desbloqueio = await page.evaluate(() => ({
+      visivel: !document.getElementById("overUnlock").hidden,
+      texto: document.getElementById("overUnlock").textContent
+    }));
+    assert.strictEqual(desbloqueio.visivel, true, "abrir um clima tem que ser dito na hora");
+    assert.match(desbloqueio.texto, /Chuva/);
+
+    // e o clima novo passa a ser escolhível no painel de ajustes
+    await page.click("#homeBtn");
+    await sleep(200);
+    await page.click("#setupBtn");
+    await page.waitForSelector("#setupScreen:not([hidden])");
+    const chuvaAberta = await page.$$eval("#visualChips .chip",
+      ns => !ns[2].disabled && ns[2].textContent.indexOf("150") < 0);
+    assert.strictEqual(chuvaAberta, true, "o clima aberto não pode continuar com cadeado");
+    await page.click("#setupDone");
+    await sleep(120);
+    await page.close();
+  });
+
+  await t.test("jogar de novo reinicia sem passar pela tela inicial", async () => {
+    const page = await novaPagina();
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word", { timeout: 15000 });
+    await page.keyboard.press("Escape");
+    await page.waitForSelector("#pauseScreen:not([hidden])");
+    await page.click("#endBtn");
+    await page.waitForSelector("#overScreen:not([hidden])", { timeout: 15000 });
+
+    await page.click("#againBtn");
+    await page.waitForSelector("#stage .word", { timeout: 15000 });
+    const estado = await page.evaluate(() => ({
+      inicio: !document.getElementById("startScreen").hasAttribute("hidden"),
+      fim: !document.getElementById("overScreen").hasAttribute("hidden"),
+      pontos: +document.querySelector("#score b").textContent
+    }));
+    assert.strictEqual(estado.inicio, false);
+    assert.strictEqual(estado.fim, false);
+    assert.strictEqual(estado.pontos, 0, "a partida nova começa do zero");
+    await page.close();
+  });
+
   await t.test("nenhum erro de console em toda a bateria", () => {
     assert.deepStrictEqual(erros, [], "erros no navegador:\n" + erros.join("\n"));
+  });
+
+  /* O piso de cobertura da interface.
+   *
+   * Os números não são iguais para todo arquivo, e não é por preguiça:
+   *   · game.js, options.js, notebook.js e challengeui.js são o jogo — 85%;
+   *   · themes.js desenha partículas quadro a quadro, e parte disso só roda
+   *     com o clima certo na tela;
+   *   · audio.js e speech.js dependem de placa de som e de vozes instaladas,
+   *     que o Chrome sem cabeça não tem — medimos, mas exigir deles o mesmo
+   *     que de um arquivo de lógica seria fingir cobertura.
+   */
+  await t.test("cobertura do JavaScript de interface", () => {
+    const LIMITES = {
+      "js/game.js": 85,
+      "js/options.js": 90,
+      "js/notebook.js": 90,
+      "js/challengeui.js": 85,
+      "js/storage.js": 85,
+      "js/themes.js": 82,
+      "js/audio.js": 85,
+      "js/speech.js": 75
+      // core/*.js não entra aqui: no navegador só rodam os caminhos que a
+      // interface usa. Quem cobra 85% deles é o relatório do node:test, que
+      // roda a lógica inteira — ver "npm run coverage".
+    };
+    const linhas = cobertura.relatorio();
+    console.log(cobertura.tabela(linhas, LIMITES));
+    cobertura.salvar("coverage/interface.json", linhas);
+
+    const vistos = {};
+    linhas.forEach(l => { vistos[l.arquivo] = l.pct; });
+
+    const nuncaCarregou = Object.keys(LIMITES).filter(a => vistos[a] === undefined);
+    assert.deepStrictEqual(nuncaCarregou, [], "arquivos que nem chegaram a carregar");
+
+    const abaixo = Object.keys(LIMITES)
+      .filter(a => vistos[a] < LIMITES[a])
+      .map(a => a + " " + vistos[a] + "% (mínimo " + LIMITES[a] + "%)");
+    assert.deepStrictEqual(abaixo, [], "cobertura abaixo do piso: " + abaixo.join(" · "));
   });
 
   for (const ctx of contextos) { try { await ctx.close(); } catch (e) {} }

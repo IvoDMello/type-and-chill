@@ -6,6 +6,8 @@
   <title>Type &amp; Chill — jogo relaxante de vocabulário em inglês</title>
   <meta name="description" content="Um jogo de digitação relaxante. Palavras em inglês descem devagar; digite cada uma antes que ela se apague e o significado aparece. Trilha ambiente generativa, quatro climas visuais, caderno com revisão espaçada e desafios para competir com amigos.">
   <meta name="theme-color" content="#160709">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%99%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,6 +46,7 @@
   <div id="tools">
     <div class="toolbtns">
       <button class="iconbtn" id="ptBtn" title="Mostrar tradução em português (Alt+P)" aria-label="Mostrar tradução em português" aria-pressed="false">PT</button>
+      <button class="iconbtn" id="optionsBtn" title="Opções (Alt+O)" aria-label="Abrir as opções">⚙</button>
       <button class="iconbtn" id="notebookBtn" title="Abrir o caderno (Alt+C)" aria-label="Abrir o caderno">▤</button>
       <button class="iconbtn" id="musicBtn" title="Música (Alt+M)" aria-label="Ligar ou desligar a música">♫</button>
       <button class="iconbtn" id="sfxBtn" title="Efeitos sonoros (Alt+S)" aria-label="Ligar ou desligar os efeitos">♪</button>
@@ -63,6 +66,7 @@
     <div class="dp"></div>
     <div class="dd"></div>
     <div class="dt" hidden></div>
+    <div class="dx" hidden></div>
   </div>
 
   <!-- Início -->
@@ -70,7 +74,10 @@
     <div class="card card-home">
       <header class="homebar">
         <span class="wordmark">Type <span class="dot">&amp;</span> Chill</span>
-        <span class="streakline" id="homeStreakBox" hidden><b id="homeStreak">0</b> dias seguidos</span>
+        <span class="homebarend">
+          <span class="streakline" id="homeStreakBox" hidden><b id="homeStreak">0</b> <span id="streakWord">dias seguidos</span></span>
+          <button type="button" class="gearbtn" id="optionsBtn2" title="Opções (O)" aria-label="Abrir as opções">⚙</button>
+        </span>
       </header>
 
       <!-- Quem chega pela primeira vez precisa saber o que é o jogo. -->
@@ -115,6 +122,7 @@
         <button type="button" class="linkbtn" id="notebookBtn2">Meu caderno</button>
         <button type="button" class="linkbtn" id="challengeBtn">Jogar com amigos</button>
         <button type="button" class="linkbtn" id="howBtn" aria-expanded="false" aria-controls="howBox">Como jogar</button>
+        <button type="button" class="linkbtn" id="installBtn" hidden>Instalar o jogo</button>
       </nav>
 
       <div class="how howgrid" id="howBox">
@@ -124,7 +132,7 @@
         <div class="row"><span class="n">04</span><span class="t">O caderno traz cada palavra de volta pouco antes de você esquecer.</span></div>
       </div>
 
-      <div class="hint" id="homeKeys">Enter começar · A ajustes · C caderno · Esc pausa</div>
+      <div class="hint" id="homeKeys">Enter começar · A ajustes · O opções · C caderno · Esc pausa</div>
     </div>
   </div>
 
@@ -152,6 +160,7 @@
       <div class="group">
         <p class="tlabel">Clima</p>
         <div id="visualChips" class="chips"></div>
+        <p class="blurb" id="visualNote"></p>
       </div>
 
       <div class="group">
@@ -162,6 +171,23 @@
       <div class="setupfoot">
         <span class="setupstats">Recorde <b id="homeBest">0</b> · Dominadas <b id="homeMastered">0</b></span>
         <button class="btn" id="setupDone">Pronto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opções: a engrenagem. Como o jogo se comporta nesta máquina —
+       som, gráficos, exibição, dados. O que jogar fica no painel de ajustes. -->
+  <div class="overlay" id="optionsScreen" hidden>
+    <div class="card card-options">
+      <div class="setuphead">
+        <h2 class="setuptitle">Opções</h2>
+        <button type="button" class="linkbtn" id="optClose">Fechar · Esc</button>
+      </div>
+      <div class="opttabs" id="optTabs" role="tablist" aria-label="Seções das opções"></div>
+      <div class="optbody" id="optBody"></div>
+      <div class="setupfoot">
+        <button type="button" class="linkbtn" id="optReset">Restaurar padrões</button>
+        <button class="btn" id="optDone">Pronto</button>
       </div>
     </div>
   </div>
@@ -177,7 +203,10 @@
         <div class="stat"><b id="wpm">0</b><span>PPM</span></div>
       </div>
       <button class="btn" id="resumeBtn">Continuar</button>
-      <button class="btn ghostbtn" id="endBtn">Encerrar sessão</button>
+      <div class="btnrow">
+        <button class="btn ghostbtn" id="optionsBtn3">Opções</button>
+        <button class="btn ghostbtn" id="endBtn">Encerrar sessão</button>
+      </div>
       <div class="hint">pressione <b>Esc</b> pra retomar</div>
     </div>
   </div>
@@ -194,6 +223,8 @@
         <div class="stat"><b id="finalAcc">0%</b><span>Precisão</span></div>
         <div class="stat"><b id="bestScore">0</b><span>Recorde</span></div>
       </div>
+
+      <p class="unlockline" id="overUnlock" hidden></p>
 
       <div id="overChallenge" class="chbox" hidden>
         <p class="tlabel">Placar do desafio <span class="code" id="overCode"></span></p>
@@ -219,6 +250,11 @@
       <div class="homestats" id="nbStats"></div>
       <div class="bars" id="nbProgress"></div>
 
+      <div class="evolution" id="nbEvolution" hidden>
+        <p class="tlabel">Sua evolução <span class="tnote" id="nbTrend"></span></p>
+        <div class="chartbox" id="nbChart"></div>
+      </div>
+
       <div class="nbfilters">
         <input type="search" id="nbSearch" placeholder="Buscar palavra, definição ou tradução" aria-label="Buscar no caderno">
         <select id="nbTheme" aria-label="Filtrar por tema"></select>
@@ -235,6 +271,7 @@
           <option value="learning">Ainda revisando</option>
           <option value="mastered">Dominadas</option>
           <option value="weak">Já escaparam</option>
+          <option value="hard">As que te pegam</option>
         </select>
       </div>
 
@@ -244,6 +281,7 @@
       <div class="nbactions">
         <button class="btn" id="nbPractice">Revisar as fracas</button>
         <button class="btn ghostbtn" id="nbExport">Baixar CSV</button>
+        <button class="btn ghostbtn" id="nbAnki">Enviar pro Anki</button>
         <button class="btn ghostbtn" id="nbClose">Voltar</button>
         <button class="btn ghostbtn danger" id="nbClear">Apagar caderno</button>
       </div>
@@ -315,16 +353,19 @@
   </div>
 
   <script src="js/words.js"></script>
+  <script src="js/examples.js"></script>
   <script src="js/core/rng.js"></script>
   <script src="js/core/srs.js"></script>
   <script src="js/core/scoring.js"></script>
   <script src="js/core/challenge.js"></script>
   <script src="js/core/wordbank.js"></script>
+  <script src="js/core/progress.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/themes.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/speech.js"></script>
   <script src="js/notebook.js"></script>
+  <script src="js/options.js"></script>
   <script src="js/challengeui.js"></script>
   <script src="js/game.js"></script>
 </body>
