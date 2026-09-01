@@ -5,6 +5,8 @@ você digita cada uma antes que ela se apague — e o significado se acende.
 
 O que o separa de um joguinho de digitação qualquer:
 
+- **20 temas de vocabulário** em recortes estreitos — esportes, profissões, bichos, roupa,
+  dinheiro, tempo… — separados em quatro famílias na hora de escolher.
 - **Trilha ambiente generativa**, feita em código, sem direitos autorais.
 - **Quatro climas** que mudam paleta, fundo e harmonia da trilha ao mesmo tempo.
 - **Caderno com repetição espaçada** (SM-2): cada palavra volta pouco antes de você esquecer.
@@ -89,15 +91,35 @@ acende quando você passa. No fim, "Copiar meu resultado" monta o texto pronto p
 
 ## ⌨️ Controles
 
+Durante a partida:
+
 | Tecla | O que faz |
 |---|---|
 | `a`–`z` | digita a palavra (a mais próxima do fundo é capturada primeiro) |
-| `Esc` | pausa e retoma (nenhuma letra é atalho — todas são digitação) |
-| Botão `PT` | mostra/esconde a tradução em português |
-| Botões `♫` `♪` | música e efeitos sonoros |
-| Botão `▤` | abre o caderno |
+| `Esc` | pausa e retoma |
+| `Alt`+`P` | mostra/esconde a tradução em português |
+| `Alt`+`M` · `Alt`+`S` | música e efeitos sonoros |
+| `Alt`+`C` | abre o caderno |
+
+**Todo atalho da partida usa `Alt`**, e não é por capricho: letra solta é sempre
+digitação. Um dia `P` foi atalho de pausa e isso tornou impossível capturar as 84
+palavras do banco que têm a letra p.
+
+Na tela inicial, onde não se digita nada, as letras podem ser atalho:
+
+| Tecla | O que faz |
+|---|---|
+| `Enter` | começa a partida |
+| `A` | abre os ajustes |
+| `C` | abre o caderno |
 
 O jogo **pausa sozinho** quando você troca de aba, e grava o caderno nesse momento.
+
+### No celular
+
+O layout se adapta de 1440px até 320px, e a partida abre o **teclado do sistema**:
+toque na tela para chamá-lo de volta se ele sumir. A área onde as palavras caem
+encolhe junto com a viewport visível, então nada cai atrás do teclado.
 
 ---
 
@@ -125,8 +147,8 @@ Type & Chill/
 │   ├── challengeui.js    → a tela de desafios
 │   └── game.js           → o laço do jogo e os modos
 ├── tests/
-│   ├── unit/             → 73 testes, sem navegador (node:test)
-│   └── e2e/              → 12 testes no Chrome de verdade
+│   ├── unit/             → 74 testes, sem navegador (node:test)
+│   └── e2e/              → 15 testes no Chrome de verdade
 └── tools/serve.js        → servidor estático de desenvolvimento
 ```
 
@@ -140,8 +162,8 @@ viram `window.TCRng`, `window.TCSrs`… no navegador e `require()` no Node.
 
 ```bash
 npm install        # só na primeira vez (puppeteer-core, ~3 MB, sem baixar navegador)
-npm test           # 73 testes de unidade, ~1s
-npm run test:e2e   # 12 testes de ponta a ponta num Chrome headless, ~80s
+npm test           # 74 testes de unidade, ~1s
+npm run test:e2e   # 15 testes de ponta a ponta num Chrome headless, ~100s
 npm run test:all   # os dois
 ```
 
@@ -153,11 +175,15 @@ Os de ponta a ponta abrem o Chrome (ou Edge) que você já tem instalado — **n
 baixado**. Se não houver navegador nem `puppeteer-core`, eles são **pulados**, não
 falham. Para apontar outro binário: `CHROME_PATH=/caminho/do/chrome npm run test:e2e`.
 
-Dois testes existem por causa de bugs que já aconteceram:
+Quatro testes existem por causa de bugs que já aconteceram:
 - *"palavras com a letra p podem ser digitadas"* — `P` já foi atalho de pausa e vinha
   antes da digitação no handler, o que tornava impossível capturar 84 palavras do banco.
 - *"o mesmo código entrega a mesma partida"* — se isso quebrar, dois amigos com o mesmo
   código jogam partidas diferentes sem perceber.
+- *"as palavras nunca caem atrás dos painéis"* — o palco ocupa a tela toda, e sem uma
+  área de queda calculada as palavras somem por trás do HUD e da lista lateral.
+- *"a tela inicial muda entre novato e veterano"* — as duas telas nascem do mesmo HTML;
+  quando uma quebra, a outra costuma continuar de pé e o erro passa despercebido.
 
 ---
 
@@ -177,15 +203,23 @@ letras minúsculas de a–z** (espaço, hífen ou acento seriam impossíveis de 
 pode repetir** em outro tema, porque o caderno guarda uma entrada por palavra.
 
 ### Criar um tema novo
+Todo tema declara a **família** (`group`) a que pertence — é o que separa as fichinhas da
+tela inicial em blocos em vez de um paredão único. As famílias ficam em `WORD_GROUPS`, no
+topo do mesmo arquivo: `daily` (do dia a dia), `human` (gente & corpo), `world` (o mundo lá
+fora) e `mind` (trabalho, saber & cultura).
 
 ```js
-science: {
-  label: "Ciência",
+music: {
+  label: "Música", group: "mind",
   words: [
-    ["gravity","n","the force that pulls objects toward the earth","gravidade","B1"]
+    ["melody","n","a series of notes that make a tune","melodia","B1"]
   ]
 },
 ```
+
+Prefira **recortes estreitos** — *esportes*, *profissões*, *bichos* — a temas guarda-chuva:
+é o que permite treinar um assunto de cada vez. Um tema precisa de **20 palavras ou mais**
+(o `npm test` cobra isso, senão o sorteio fica repetitivo).
 
 ### Criar um clima visual novo
 1. Em `css/themes.css`, copie um bloco `html[data-visual="..."]` e troque as cores.
@@ -236,10 +270,32 @@ Dica: o clima **Chuva** com o modo **Zen** dá o melhor vídeo de fundo.
 
 ---
 
+## 🎨 Como a interface está organizada
+
+A tela inicial tem **dois estados**, montados do mesmo HTML:
+
+- **primeira vez** — kicker, título grande e uma frase; o "como jogar" já vem aberto;
+- **veterano** — quantas palavras vencem hoje, em corpo grande, e a ofensiva no topo.
+
+A ação primária acompanha: quem tem revisão vencida vê *"Revisar N palavras"*, quem não
+tem vê *"Começar"*. O outro caminho fica logo abaixo, como texto.
+
+Toda a configuração — modo, temas, níveis, clima, preferências — vive num **painel**
+(`#setupScreen`, tecla `A`), resumido numa linha na tela inicial. São escolhas que se
+fazem uma vez e ficam meses iguais; elas não precisavam do lugar nobre.
+
+Durante a partida o HUD guarda só o que muda a cada instante: nível, pontos, sequência,
+vidas e pausar. PPM e Aprendidas aparecem na tela de pausa; os botões de som, tradução e
+caderno ficam no rodapé, longe de onde as palavras caem.
+
+---
+
 ## 🗺️ Próximos passos
 
 - [ ] Publicar de graça (GitHub Pages, Netlify ou Vercel — é só subir a pasta).
-- [ ] Controle por toque (teclado virtual) e layout retrato — o que falta antes do mobile.
+- [x] Layout responsivo e teclado virtual no celular.
+- [ ] Alvos de toque no lugar do teclado (tocar na palavra pra escolhê-la) e testes em
+      aparelho de verdade — o que falta antes de encarar a Play Store.
 - [ ] Empacotar com [Capacitor](https://capacitorjs.com) pra virar APK/AAB e ir pra Play Store.
       Como o projeto é HTML/CSS/JS puro, isso não exige reescrever nada.
 - [ ] Placar online opcional, se um dia valer a pena ter servidor.

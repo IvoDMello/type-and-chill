@@ -73,14 +73,14 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
    * isolado. Limpar o localStorage e recarregar não bastava: o `pagehide` da
    * página antiga grava o caderno que ainda está em memória, desfazendo a
    * limpeza e vazando o caderno de um subteste para o seguinte. */
-  async function novaPagina(prepararArmazenamento) {
+  async function novaPagina(prepararArmazenamento, janela) {
     const ctx = browser.createBrowserContext
       ? await browser.createBrowserContext()
       : await browser.createIncognitoBrowserContext();
     contextos.push(ctx);
 
     const page = await ctx.newPage();
-    await page.setViewport({ width: 1440, height: 900 });
+    await page.setViewport(janela || { width: 1440, height: 900 });
 
     if (prepararArmazenamento) {
       // semeia numa página vazia da mesma origem: se o app já tivesse
@@ -166,6 +166,9 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     // Regressão: "P" já foi atalho de pausa e vinha antes da digitação no
     // handler, o que tornava impossível capturar 84 palavras do banco.
     const page = await novaPagina();
+    // no modo Zen não há vidas: enquanto o teste espera cair uma palavra com
+    // "p", as outras podem escapar sem encerrar a partida por game over
+    await page.$$eval("#modeChips .chip", ns => ns[1].click());
     await page.click("#startBtn");
     await page.waitForSelector("#stage .word");
 
@@ -299,6 +302,162 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     await page.waitForSelector("#overScreen:not([hidden])", { timeout: 15000 });
     const titulo = await page.$eval("#overTitle", e => e.textContent);
     assert.strictEqual(titulo, "Revisão concluída");
+    await page.close();
+  });
+
+  await t.test("as palavras nunca caem atrás dos painéis", async () => {
+    // Regressão de usabilidade: o palco ocupa a tela toda, então as palavras
+    // caíam por trás da lista de capturadas e do cartão de definição, que têm
+    // z-index maior — a informação mais importante ficava ilegível.
+    const page = await novaPagina();
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word");
+
+    const invasoes = [];
+    const fim = Date.now() + 12000;
+    while (Date.now() < fim) {
+      const amostra = await page.evaluate(() => {
+        const painel = document.getElementById("collected").getBoundingClientRect();
+        const horizonte = document.getElementById("horizon").getBoundingClientRect().top;
+        const visivel = getComputedStyle(document.getElementById("collected")).display !== "none";
+        return [...document.querySelectorAll("#stage .word")].map(n => {
+          const r = n.getBoundingClientRect();
+          return {
+            texto: n.textContent,
+            sobrePainel: visivel && r.right > painel.left && r.bottom > painel.top && r.top < painel.bottom,
+            abaixoDoHorizonte: r.top > horizonte + 4,
+            foraDaTela: r.left < 0 || r.right > window.innerWidth
+          };
+        });
+      });
+      for (const w of amostra) {
+        if (w.sobrePainel) invasoes.push(`${w.texto} invadiu a lista lateral`);
+        if (w.abaixoDoHorizonte) invasoes.push(`${w.texto} passou do horizonte`);
+        if (w.foraDaTela) invasoes.push(`${w.texto} saiu da tela`);
+      }
+      await sleep(100);
+    }
+
+    assert.deepStrictEqual([...new Set(invasoes)], [], "palavras sobrepostas por painéis");
+    await page.close();
+  });
+
+  await t.test("a tela inicial muda entre novato e veterano", async () => {
+    // Quem chega agora e quem já tem caderno querem coisas opostas: um quer
+    // entrar no jogo, o outro quer saber o que revisar hoje.
+    const novato = await novaPagina();
+    const antes = await novato.evaluate(() => ({
+      cta: document.getElementById("startLabel").textContent,
+      apresentacao: !document.getElementById("homeNew").hidden,
+      revisao: !document.getElementById("homeVet").hidden,
+      comoJogar: !document.getElementById("howBox").hidden,
+      atalho: document.getElementById("altStartBtn").hidden,
+      resumo: document.getElementById("setupSummary").textContent
+    }));
+    assert.strictEqual(antes.cta, "Começar");
+    assert.strictEqual(antes.apresentacao, true, "o novato precisa ver o que é o jogo");
+    assert.strictEqual(antes.revisao, false);
+    assert.strictEqual(antes.comoJogar, true, "as regras abrem sozinhas na primeira vez");
+    assert.strictEqual(antes.atalho, true, "sem caderno não há revisão para oferecer");
+    assert.match(antes.resumo, /Clássico · todos os temas · A2–C1/);
+
+    // a configuração toda vive num painel, não na tela principal
+    await novato.keyboard.press("a");
+    await sleep(250);
+    const painel = await novato.evaluate(() => ({
+      aberto: !document.getElementById("setupScreen").hasAttribute("hidden"),
+      temas: document.querySelectorAll("#themeChips .chip").length,
+      familias: document.querySelectorAll("#themeChips .chipgroup").length
+    }));
+    assert.strictEqual(painel.aberto, true, "a tecla A precisa abrir os ajustes");
+    assert.strictEqual(painel.familias, 4);
+    assert.ok(painel.temas >= 20);
+    await novato.keyboard.press("Escape");
+    await sleep(200);
+    assert.strictEqual(
+      await novato.$eval("#setupScreen", e => e.hasAttribute("hidden")), true,
+      "Esc precisa fechar os ajustes"
+    );
+    await novato.close();
+
+    const veterano = await novaPagina(() => {
+      const agora = Date.now();
+      const nb = {};
+      for (const w of ["meadow", "harvest", "linger"]) {
+        nb[w] = {
+          pos: "n", en: "def", pt: "trad", lvl: "B1", theme: "nature",
+          hits: 2, misses: 0, typos: 0, first: agora - 8e8, last: agora - 9e7,
+          srs: { ease: 2.4, interval: 3, reps: 2, lapses: 0, due: agora - 36e5 }
+        };
+      }
+      localStorage.setItem("tc.version", "2");
+      localStorage.setItem("tc.notebook", JSON.stringify(nb));
+    });
+    const depois = await veterano.evaluate(() => ({
+      cta: document.getElementById("startLabel").textContent,
+      apresentacao: !document.getElementById("homeNew").hidden,
+      revisao: !document.getElementById("homeVet").hidden,
+      numero: document.getElementById("homeDue").textContent,
+      atalho: document.getElementById("altStartBtn").textContent,
+      atalhoOculto: document.getElementById("altStartBtn").hidden
+    }));
+    assert.strictEqual(depois.cta, "Revisar 3 palavras", "a ação primária do veterano é revisar");
+    assert.strictEqual(depois.apresentacao, false);
+    assert.strictEqual(depois.revisao, true);
+    assert.strictEqual(depois.numero, "3");
+    assert.strictEqual(depois.atalhoOculto, false);
+    assert.match(depois.atalho, /Partida nova/);
+
+    // e o caminho da partida normal continua a um clique de distância
+    await veterano.click("#altStartBtn");
+    await veterano.waitForSelector("#stage .word", { timeout: 15000 });
+    assert.strictEqual(await veterano.$eval("#lvl", e => e.textContent), "1");
+    await veterano.close();
+  });
+
+  await t.test("no celular nada estoura a tela nem cobre as palavras", async () => {
+    const page = await novaPagina(null, { width: 390, height: 844, isMobile: true, hasTouch: true });
+
+    const inicio = await page.evaluate(() => ({
+      rolagemH: document.documentElement.scrollWidth - window.innerWidth,
+      ctaTopo: Math.round(document.getElementById("startBtn").getBoundingClientRect().bottom),
+      lista: getComputedStyle(document.getElementById("collected")).display
+    }));
+    assert.strictEqual(inicio.rolagemH, 0, "a tela inicial não pode rolar na horizontal");
+    assert.ok(inicio.ctaTopo < 844, "o botão de começar precisa caber sem rolar");
+    assert.strictEqual(inicio.lista, "none", "a lista lateral não cabe no celular");
+
+    await page.click("#startBtn");
+    await page.waitForSelector("#stage .word");
+
+    const problemas = [];
+    const fim = Date.now() + 8000;
+    while (Date.now() < fim) {
+      const amostra = await page.evaluate(() => {
+        const botoes = document.getElementById("tools").getBoundingClientRect();
+        const horizonte = document.getElementById("horizon").getBoundingClientRect().top;
+        return {
+          rolagemH: document.documentElement.scrollWidth - window.innerWidth,
+          palavras: [...document.querySelectorAll("#stage .word")].map(n => {
+            const r = n.getBoundingClientRect();
+            return {
+              texto: n.textContent,
+              fora: r.left < 0 || r.right > window.innerWidth,
+              passou: r.top > horizonte + 4,
+              sobreBotoes: r.right > botoes.left && r.bottom > botoes.top && r.top < botoes.bottom
+            };
+          })
+        };
+      });
+      if (amostra.rolagemH > 0) problemas.push("a partida gerou rolagem horizontal");
+      for (const w of amostra.palavras) {
+        if (w.fora) problemas.push(w.texto + " saiu da tela");
+        if (w.passou) problemas.push(w.texto + " passou do horizonte");
+        if (w.sobreBotoes) problemas.push(w.texto + " caiu sobre os botões do rodapé");
+      }
+      await sleep(120);
+    }
+    assert.deepStrictEqual([...new Set(problemas)], []);
     await page.close();
   });
 

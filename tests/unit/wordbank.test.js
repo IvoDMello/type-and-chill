@@ -5,11 +5,11 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { WORD_THEMES, WORD_LEVELS } = require("../../js/words.js");
+const { WORD_THEMES, WORD_LEVELS, WORD_GROUPS } = require("../../js/words.js");
 const wordbank = require("../../js/core/wordbank.js");
 
 test("banco de palavras passa na validação sem nenhum erro", () => {
-  const report = wordbank.validate(WORD_THEMES, WORD_LEVELS);
+  const report = wordbank.validate(WORD_THEMES, WORD_LEVELS, WORD_GROUPS);
   assert.deepStrictEqual(
     report.errors, [],
     "problemas encontrados:\n" + report.errors.map(e => `  ${e.theme} | ${e.word} | ${e.problem}`).join("\n")
@@ -41,12 +41,29 @@ test("o banco tem tamanho e distribuição de níveis utilizáveis", () => {
   }
 });
 
-test("todo tema tem label e palavras suficientes para uma partida", () => {
+test("todo tema tem label, grupo e palavras suficientes para uma partida", () => {
   for (const key of Object.keys(WORD_THEMES)) {
     const theme = WORD_THEMES[key];
     assert.ok(theme.label && theme.label.trim(), `tema ${key} sem label`);
+    assert.ok(WORD_GROUPS[theme.group], `tema ${key} aponta para grupo inexistente: ${theme.group}`);
     assert.ok(theme.words.length >= 20, `tema ${key} tem só ${theme.words.length} palavras`);
   }
+});
+
+test("groupsOf separa os temas em famílias sem perder nenhum", () => {
+  const groups = wordbank.groupsOf(WORD_THEMES, WORD_GROUPS);
+  const listed = groups.flatMap(g => g.themes);
+  assert.deepStrictEqual(listed.slice().sort(), Object.keys(WORD_THEMES).sort());
+  assert.strictEqual(listed.length, new Set(listed).size, "tema repetido em mais de uma família");
+  assert.ok(groups.every(g => g.label && g.themes.length), "família vazia ou sem nome");
+
+  // tema com grupo desconhecido não some da tela: cai numa família "Outros"
+  const solto = wordbank.groupsOf(
+    { nature: WORD_THEMES.nature, perdido: { label: "X", group: "nao-existe", words: [] } },
+    WORD_GROUPS
+  );
+  const outros = solto.find(g => g.themes.indexOf("perdido") >= 0);
+  assert.ok(outros, "tema com grupo inválido sumiu do agrupamento");
 });
 
 test("buildPool respeita os filtros de tema e de nível", () => {

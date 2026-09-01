@@ -42,8 +42,31 @@
 
   function allWords(bank) { return buildPool(bank, null); }
 
-  /* Devolve { errors, duplicates, total, byLevel, byTheme }. */
-  function validate(bank, levels) {
+  /* Temas na ordem do banco, separados nas famílias declaradas em WORD_GROUPS.
+   * Tema sem grupo (ou com grupo desconhecido) vira uma família própria no fim,
+   * para nunca sumir da tela por causa de um typo. */
+  function groupsOf(bank, groups) {
+    var g = groups || {}, out = [], index = {};
+    function bucket(key, label) {
+      if (!index[key]) {
+        index[key] = { key: key, label: label, themes: [] };
+        out.push(index[key]);
+      }
+      return index[key];
+    }
+    Object.keys(g).forEach(function (k) { bucket(k, g[k].label || k); });
+    Object.keys(bank).forEach(function (k) {
+      var key = bank[k].group;
+      var target = (key && index[key]) ? index[key] : bucket(key || "outros", "Outros");
+      target.themes.push(k);
+    });
+    return out.filter(function (b) { return b.themes.length; });
+  }
+
+  /* Devolve { errors, duplicates, total, byLevel, byTheme }.
+   * `groups` é opcional: quando vem, confere se cada tema aponta para uma
+   * família existente. */
+  function validate(bank, levels, groups) {
     var errors = [], duplicates = [], seen = {};
     var byLevel = {}, byTheme = {}, total = 0;
     var validLevels = levels || ["A2", "B1", "B2", "C1"];
@@ -52,6 +75,9 @@
       var theme = bank[key];
       if (!theme || typeof theme.label !== "string" || !theme.label) {
         errors.push({ theme: key, word: null, problem: "tema sem label" });
+      }
+      if (groups && (!theme || !theme.group || !groups[theme.group])) {
+        errors.push({ theme: key, word: null, problem: "grupo inválido: " + (theme && theme.group) });
       }
       if (!theme || !Array.isArray(theme.words) || !theme.words.length) {
         errors.push({ theme: key, word: null, problem: "tema sem palavras" });
@@ -94,5 +120,8 @@
     };
   }
 
-  return { POS: POS, WORD_RE: WORD_RE, toWord: toWord, buildPool: buildPool, allWords: allWords, validate: validate };
+  return {
+    POS: POS, WORD_RE: WORD_RE, toWord: toWord, buildPool: buildPool,
+    allWords: allWords, groupsOf: groupsOf, validate: validate
+  };
 });

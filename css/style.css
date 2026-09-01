@@ -16,8 +16,42 @@ body {
 }
 #bg { position: fixed; inset: 0; z-index: 0; display: block }
 
+/* Fora da partida o HUD é ruído: some junto com a lista, a linha do horizonte
+   e os botões de rodapé, em vez de borrar por trás do overlay. */
+#hud, #tools, #collected, #horizon {
+  opacity: 0; pointer-events: none; transition: opacity .35s ease;
+}
+body.is-playing #hud, body.is-playing #tools,
+body.is-playing #collected, body.is-playing #horizon { opacity: 1 }
+body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
+
+/* Campo invisível que abre o teclado virtual no celular. Precisa continuar
+   dentro da viewport e com fonte de 16px: fora dela o iOS recusa o foco, e
+   abaixo de 16px o Safari dá zoom na página ao focar. */
+#touchInput {
+  position: fixed; left: 50%; bottom: 45%; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; z-index: -1;
+  border: 0; padding: 0; font-size: 16px;
+  color: transparent; background: transparent;
+}
+
 /* ---------- Palco ---------- */
-#stage { position: fixed; inset: 0; z-index: 1; overflow: hidden }
+/* A máscara apaga a faixa do HUD: as palavras surgem de uma dissolvência logo
+   abaixo dele em vez de passarem por trás dos números e ficarem ilegíveis.
+   A altura vem do JS, que mede o HUD de verdade. */
+#stage {
+  position: fixed; inset: 0; z-index: 1; overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 var(--stage-fade, 96px));
+  mask-image: linear-gradient(180deg, transparent 0, #000 var(--stage-fade, 96px));
+}
+
+/* Onde a palavra se apaga. Sem esta linha o jogador não tem como saber quanto
+   tempo ainda tem — e o cartão de definição parecia engolir as palavras. */
+#horizon {
+  position: fixed; z-index: 2; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--border-hi), transparent);
+  opacity: .5;
+}
 .word {
   position: absolute; top: 0; left: 0; will-change: transform;
   padding: .42em .74em; border-radius: 999px;
@@ -51,73 +85,104 @@ body {
 .word.shake .inner { animation: shake .32s }
 
 /* ---------- HUD ---------- */
+/* Só o que muda a cada instante: nível, pontos, sequência, vidas e pausa.
+   PPM e Aprendidas foram para a tela de pausa; os botões de som, tradução e
+   caderno desceram para o rodapé, longe da área onde as palavras caem. */
 #hud {
   position: fixed; z-index: 4; inset: 0 0 auto 0;
-  padding: 16px clamp(14px, 3vw, 30px);
+  padding: max(14px, env(safe-area-inset-top)) clamp(14px, 3vw, 30px) 0;
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 14px; pointer-events: none;
 }
-.brand { display: flex; flex-direction: column; gap: 2px }
-.brand h1 {
-  margin: 0; font-family: var(--serif); font-weight: 600;
-  font-size: 1.34rem; letter-spacing: .01em;
-}
-.brand h1 .dot { color: var(--accent) }
+.brand { display: flex; flex-direction: column; gap: 4px }
 .brand .lvl {
-  font-family: var(--mono); font-size: .68rem; letter-spacing: .22em;
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .2em;
   text-transform: uppercase; color: var(--faint);
 }
-.stats { display: flex; align-items: center; gap: clamp(8px, 1.6vw, 20px); pointer-events: auto }
-.stat { display: flex; flex-direction: column; align-items: flex-end; line-height: 1 }
-.stat b {
-  font-family: var(--mono); font-weight: 700; font-size: 1.35rem;
-  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+.stats { display: flex; align-items: center; gap: clamp(12px, 2vw, 22px); pointer-events: auto }
+
+.scorebox { display: flex; align-items: baseline; gap: 8px }
+.scorebox b {
+  font-family: var(--mono); font-weight: 700;
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem); line-height: 1;
+  font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
-.stat span {
-  font-family: var(--mono); font-size: .6rem; letter-spacing: .2em;
-  text-transform: uppercase; color: var(--faint); margin-top: 4px; text-align: right;
+.scorebox span { font-family: var(--mono); font-size: .88rem; color: var(--accent) }
+
+.lifebox { display: flex; align-items: center; gap: 9px }
+.lifebox > span {
+  font-family: var(--mono); font-size: .58rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint);
 }
-#combo b { color: var(--accent) }
-.lives { display: flex; gap: 5px; font-size: 1.1rem; line-height: 1 }
+.lifebox.dots > span { display: none }        /* no clássico os pontinhos falam sozinhos */
+.lives { display: flex; align-items: center; gap: 5px }
+.pip {
+  width: 7px; height: 7px; border-radius: 999px; background: var(--hot);
+  box-shadow: 0 0 9px var(--word-glow); transition: background .3s, box-shadow .3s;
+}
+.pip.lost { background: var(--field); box-shadow: none; border: 1px solid var(--border) }
 .lives.count {
-  display: block; font-family: var(--mono); font-weight: 700;
-  font-size: 1.35rem; color: var(--accent); font-variant-numeric: tabular-nums;
+  font-family: var(--mono); font-weight: 700; font-size: 1.2rem;
+  color: var(--accent); font-variant-numeric: tabular-nums;
 }
-.heart { color: var(--hot); filter: drop-shadow(0 0 6px var(--word-glow)); transition: transform .2s, opacity .3s }
-.heart.lost { opacity: .18; filter: none; transform: scale(.8) }
+
+/* ---------- Controles secundários, no rodapé ---------- */
+#tools {
+  position: fixed; z-index: 6;
+  left: clamp(14px, 3vw, 30px);
+  bottom: max(20px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+  pointer-events: none;
+}
+.toolbtns { display: flex; gap: 7px; pointer-events: auto }
+.toolhint {
+  margin: 0; font-family: var(--mono); font-size: .58rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint);
+}
+
 .iconbtn {
   pointer-events: auto; cursor: pointer;
   background: var(--panel); border: 1px solid var(--border);
-  color: var(--muted); min-width: 38px; height: 38px; padding: 0 9px;
-  border-radius: 11px; font-family: var(--mono); font-size: .82rem;
-  display: grid; place-items: center;
-  transition: color .2s, border-color .2s, background .2s;
+  color: var(--muted); min-width: 34px; height: 34px; padding: 0 8px;
+  border-radius: 10px; font-family: var(--mono); font-size: .76rem;
+  display: grid; place-items: center; opacity: .62;
+  transition: color .2s, border-color .2s, background .2s, opacity .2s;
 }
-.iconbtn:hover { color: var(--text); border-color: var(--border-hi) }
-.iconbtn.off { color: var(--faint); opacity: .6 }
-.iconbtn[aria-pressed="true"] { color: var(--accent); border-color: var(--border-hi) }
+.iconbtn:hover, .iconbtn:focus-visible { color: var(--text); border-color: var(--border-hi); opacity: 1 }
+.iconbtn.off { color: var(--faint); opacity: .38 }
+.iconbtn[aria-pressed="true"] { color: var(--accent); border-color: var(--border-hi); opacity: 1 }
 .iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 
 /* ---------- Palavras capturadas na partida ---------- */
+/* Uma coluna de texto que se apaga para cima, não uma pilha de cartões: ocupa
+   pouca largura e devolve o resto da tela para as palavras que estão caindo. */
 #collected {
-  position: fixed; z-index: 3; top: 84px; right: clamp(14px, 3vw, 30px); bottom: 150px;
-  width: min(300px, 28vw); display: flex; flex-direction: column; pointer-events: none;
+  position: fixed; z-index: 3; top: 74px; right: clamp(14px, 3vw, 30px); bottom: 200px;
+  width: min(190px, 19vw); display: flex; flex-direction: column;
+  align-items: flex-end; text-align: right; pointer-events: none;
 }
 #collected .ctitle {
-  font-family: var(--mono); font-size: .62rem; letter-spacing: .24em;
-  text-transform: uppercase; color: var(--faint); margin: 0 0 10px 2px;
+  font-family: var(--mono); font-size: .56rem; letter-spacing: .24em;
+  text-transform: uppercase; color: var(--faint); margin: 0 0 10px;
+  opacity: 0; transition: opacity .3s ease;
 }
+#collected.has-words .ctitle { opacity: .7 }
 #clist {
   list-style: none; margin: 0; padding: 0; overflow: hidden;
-  display: flex; flex-direction: column; gap: 9px;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 34px, #000 86%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, #000 34px, #000 86%, transparent 100%);
+  display: flex; flex-direction: column; gap: 6px; width: 100%;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, #000 70%, transparent 100%);
 }
 #clist li {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 13px;
-  padding: 11px 13px; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
-  animation: slideIn .4s ease;
+  font-family: var(--mono); font-size: .88rem; letter-spacing: .01em;
+  color: var(--text); animation: slideIn .4s ease;
 }
+#clist li:nth-child(1) { opacity: .92 }
+#clist li:nth-child(2) { opacity: .68 }
+#clist li:nth-child(3) { opacity: .48 }
+#clist li:nth-child(4) { opacity: .34 }
+#clist li:nth-child(5) { opacity: .24 }
+#clist li:nth-child(n+6) { opacity: .14 }
 @keyframes slideIn { from { opacity: 0; transform: translateX(22px) } to { opacity: 1; transform: none } }
 
 .cw { font-family: var(--mono); font-weight: 700; font-size: .98rem; color: var(--accent) }
@@ -186,11 +251,134 @@ body {
   font-family: var(--serif); font-size: 1.04rem; line-height: 1.55; color: var(--muted);
   max-width: 44ch; margin: 0 auto 20px; text-wrap: balance;
 }
-
+.stat { display: flex; flex-direction: column; align-items: flex-end; line-height: 1 }
+.stat b {
+  font-family: var(--mono); font-weight: 700; font-size: 1.35rem;
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+.stat span {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint); margin-top: 4px; text-align: right;
+}
 .homestats { display: flex; justify-content: center; gap: 26px; margin: 0 0 22px }
 .homestats .stat { align-items: center }
 .homestats .stat b { font-size: 1.5rem; color: var(--accent) }
 .homestats .stat span { text-align: center }
+
+/* ---------- Tela inicial ---------- */
+/* Sem moldura de cartão: a coluna sozinha sobre o fundo. A hierarquia vem do
+   tamanho, não de caixas — e a ação primária fica antes de qualquer ajuste. */
+.card-home {
+  width: min(600px, 100%); max-height: 100vh; max-height: 100dvh; overflow-y: auto;
+  background: none; border: 0; border-radius: 0; box-shadow: none;
+  text-align: left; padding: clamp(24px, 5vh, 48px) clamp(20px, 5vw, 28px);
+  display: block;
+}
+.card-home > * + * { margin-top: 22px }
+
+.homebar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px }
+.homebar[hidden] { display: none }
+.wordmark { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; letter-spacing: .01em }
+.wordmark .dot { color: var(--accent) }
+.streakline {
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+.streakline b { color: var(--accent); font-weight: 700 }
+.streakline[hidden] { display: none }
+
+.card-home .kicker { margin-bottom: 14px }
+#homeNew h2 { font-size: clamp(2.5rem, 7vw, 3.6rem); margin: 0 0 16px; line-height: 1.02 }
+.card-home .lead { margin: 0; max-width: 42ch }
+
+#homeNew { padding-top: 18px }
+#homeVet { padding-top: 10px }
+.vetline { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px }
+.bignum {
+  font-family: var(--mono); font-weight: 700; line-height: .88;
+  font-size: clamp(2.9rem, 8vw, 4rem); font-variant-numeric: tabular-nums;
+}
+.card-home .vethead {
+  margin: 0; font-family: var(--serif); font-weight: 600; line-height: 1.12;
+  font-size: clamp(1.4rem, 3.4vw, 1.95rem); letter-spacing: -.01em;
+}
+.card-home .goal { margin: 0; max-width: none }
+.card-home .goaltext { text-align: left }
+.card-home .warn { margin: 0; max-width: none; text-align: left }
+
+/* Ação primária: uma barra larga, com a tecla que a dispara escrita nela. */
+.btn.cta {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; text-align: left; padding: 20px 24px; font-size: .92rem; border-radius: 18px;
+}
+.ctakey { font-size: .66rem; letter-spacing: .16em; opacity: .68 }
+.ctameta {
+  display: flex; justify-content: space-between; gap: 14px; margin-top: 10px;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint);
+}
+.ctameta span:last-child { text-align: right }
+
+.linkbtn {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--mono); font-size: .66rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); transition: color .18s;
+}
+.linkbtn:hover { color: var(--text) }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px }
+.altstart {
+  display: inline-block; margin-top: 14px;
+  border-bottom: 1px solid var(--border-hi); padding-bottom: 3px;
+}
+.altstart[hidden] { display: none }
+
+/* Toda a configuração cabe numa linha; o painel só abre quando alguém pede. */
+.setupline {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; text-align: left; cursor: pointer;
+  padding: 14px 16px; border-radius: 14px;
+  border: 1px solid var(--border); background: var(--field); color: var(--muted);
+  transition: border-color .18s, color .18s;
+}
+.setupline:hover { border-color: var(--border-hi); color: var(--text) }
+.setupline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+.setupsum { font-family: var(--mono); font-size: .76rem; line-height: 1.5; letter-spacing: .02em }
+.setupkey {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+}
+
+.homelinks {
+  display: flex; flex-wrap: wrap; gap: 22px;
+  margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border);
+}
+#howBox { margin-top: 16px }
+#homeKeys { margin-top: 26px; text-align: left }
+
+/* ---------- Painel de ajustes ---------- */
+.card-setup { width: min(660px, 96vw); text-align: left }
+.setuphead {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 26px;
+}
+.card-setup .setuptitle {
+  margin: 0; font-family: var(--serif); font-weight: 600;
+  font-size: clamp(1.5rem, 4vw, 1.9rem); letter-spacing: -.01em;
+}
+.card-setup .group { max-width: none; margin: 0 0 26px }
+.card-setup .chips { justify-content: flex-start }
+.card-setup .chiphead { justify-content: flex-start }
+.card-setup .tlabel { text-align: left }
+.setupfoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-top: 1px solid var(--border); padding-top: 18px;
+}
+.setupstats {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint);
+}
+.setupstats b { color: var(--accent) }
+.setupfoot .btn { padding: 13px 26px; margin: 0 }
 
 /* ---------- Blocos de configuração ---------- */
 .group { margin: 0 auto 20px; max-width: 460px }
@@ -206,18 +394,34 @@ body {
   color: var(--muted); margin: 10px 0 0; text-wrap: balance;
 }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center }
+
+/* Temas separados por família: cabeçalho discreto + fichinhas do grupo. */
+.themebox { display: flex; flex-direction: column; gap: 14px }
+.chiphead {
+  display: flex; align-items: baseline; justify-content: center; gap: 8px;
+  font-family: var(--mono); font-size: .58rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--faint); margin: 0 0 8px;
+}
+.minibtn {
+  cursor: pointer; background: none; border: 0; padding: 0;
+  font: inherit; letter-spacing: .06em; text-transform: none;
+  color: var(--faint); border-bottom: 1px dashed currentColor;
+}
+.minibtn:hover { color: var(--text) }
+.minibtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+.tlabel .minibtn { margin-left: 6px }
 .chip {
   cursor: pointer; font-family: var(--mono); font-size: .8rem; letter-spacing: .02em;
   padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--field); color: var(--muted);
+  background: var(--field); color: var(--faint);
   display: inline-flex; align-items: center; gap: 8px;
   transition: color .18s, border-color .18s, background .18s, box-shadow .18s;
 }
 .chip:hover { border-color: var(--border-hi); color: var(--text) }
 .chip[aria-pressed="true"] {
-  background: linear-gradient(180deg, var(--btn-a), var(--btn-b));
-  color: var(--btn-fg); border-color: transparent; font-weight: 700;
-  box-shadow: 0 6px 20px var(--btn-glow);
+  background: var(--word-bg-on); color: var(--text);
+  border-color: var(--accent); font-weight: 700;
+  box-shadow: 0 0 0 1px var(--word-border-on), 0 0 20px var(--word-glow);
 }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .chip-level { min-width: 58px; justify-content: center }
@@ -227,20 +431,6 @@ body {
   border: 1px solid rgba(127,127,127,0.35); flex: none;
 }
 
-.howbox { margin: 18px auto 0; max-width: 420px; text-align: left }
-.howbox > summary {
-  cursor: pointer; list-style: none; text-align: center;
-  font-family: var(--mono); font-size: .66rem; letter-spacing: .18em;
-  text-transform: uppercase; color: var(--faint); padding: 6px;
-  transition: color .18s;
-}
-.howbox > summary::-webkit-details-marker { display: none }
-.howbox > summary::after { content: " ▾"; }
-.howbox[open] > summary::after { content: " ▴"; }
-.howbox > summary:hover { color: var(--muted) }
-.howbox > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px }
-.howbox .how { margin-top: 12px; margin-bottom: 0 }
-
 .how { display: flex; flex-direction: column; gap: 11px; text-align: left; max-width: 420px; margin: 0 auto 24px }
 .how .row { display: flex; gap: 13px; align-items: baseline }
 .how .n {
@@ -249,6 +439,14 @@ body {
 }
 .how .t { font-family: var(--serif); font-size: .96rem; line-height: 1.45; color: var(--text) }
 .how .t b { color: var(--accent); font-weight: 600 }
+
+.how.howgrid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px 20px;
+  max-width: none; margin: 0; padding: 18px; border-radius: 14px;
+  border: 1px solid var(--border); background: var(--panel);
+}
+.how.howgrid[hidden] { display: none }
+.how.howgrid .t { font-size: .89rem; color: var(--muted) }
 
 /* ---------- Botões ---------- */
 .btn {
@@ -276,7 +474,7 @@ body {
   text-transform: uppercase; color: var(--faint); margin: 12px 0 14px;
 }
 .hint {
-  margin-top: 16px; font-family: var(--mono); font-size: .64rem; letter-spacing: .13em;
+  margin-top: 16px; font-family: var(--mono); font-size: .62rem; letter-spacing: .13em;
   text-transform: uppercase; color: var(--faint);
 }
 .hint b { color: var(--muted) }
@@ -286,6 +484,8 @@ body {
 .finalrow .stat { align-items: center }
 .finalrow .stat b { font-size: 2.2rem }
 .finalrow .stat span { color: var(--muted); text-align: center }
+.finalrow.runrow { gap: 34px; margin: 4px 0 22px }
+.finalrow.runrow .stat b { font-size: 1.7rem; color: var(--accent) }
 .recap {
   max-height: 230px; overflow-y: auto; text-align: left; margin: 0 0 20px; padding-right: 6px;
   display: flex; flex-direction: column; gap: 8px;
@@ -335,34 +535,14 @@ body {
 }
 .nbrow.is-mastered { border-color: var(--border-hi) }
 .nbrow.is-mastered .cw::after { content: " ✦"; color: var(--gold); font-size: .8em }
+.nbrow.is-due { border-left: 3px solid var(--accent) }
 .nbactions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center }
 .nbactions .btn + .btn { margin-top: 0 }
-
-/* ---------- Telas menores ---------- */
-@media (max-width: 900px) {
-  #collected { display: none }
-  #defcard { bottom: 28px }
-  .stat b { font-size: 1.1rem }
-  .stats { gap: 10px }
-}
-@media (max-width: 620px) {
-  #hud { flex-direction: column; align-items: stretch }
-  .stats { justify-content: space-between }
-  .nbfilters input, .nbfilters select { flex: 1 1 100% }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .word { transition: opacity .3s ease }
-  .word.shake .inner { animation: none }
-  #clist li { animation: none }
-  .btn:hover { transform: none }
-}
-
 
 /* ---------- Ofensiva e meta diária ---------- */
 .goal { max-width: 380px; margin: 0 auto 20px }
 .bartrack {
-  position: relative; height: 7px; border-radius: 999px;
+  position: relative; height: 5px; border-radius: 999px;
   background: var(--field); border: 1px solid var(--border); overflow: hidden;
 }
 .bartrack > i {
@@ -383,8 +563,8 @@ body {
 
 /* ---------- Fantasma do desafio, no HUD ---------- */
 .ghost {
-  font-family: var(--mono); font-size: .64rem; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--faint); margin-top: 6px;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--faint);
 }
 .ghost.beaten { color: var(--accent) }
 
@@ -464,10 +644,81 @@ body {
 }
 .chnote.is-error { color: var(--hot) }
 
-/* ---------- Caderno: palavra vencida ---------- */
-.nbrow.is-due { border-left: 3px solid var(--accent) }
+/* ---------- Telas menores ---------- */
+@media (max-width: 1100px) {
+  #collected { width: min(160px, 17vw) }
+}
+@media (max-width: 900px) {
+  #collected { display: none }
+  #defcard { bottom: 30px }
+}
 
+/* Celular em pé: a coluna vira a tela inteira e tudo que é acessório sai. */
 @media (max-width: 620px) {
+  #hud { padding-top: max(10px, env(safe-area-inset-top)) }
+  .brand .lvl { font-size: .6rem }
+  .scorebox b { font-size: 1.3rem }
+  .scorebox span { font-size: .78rem }
+  .stats { gap: 12px }
+
+  #tools { bottom: max(12px, env(safe-area-inset-bottom)); left: 12px }
+  .toolhint { display: none }
+
+  /* acima da fileira de botões, nunca por cima dela */
+  #defcard { width: calc(100vw - 24px); bottom: 74px }
+  #defcard .dd { font-size: 1rem }
+  .word { font-size: clamp(1.05rem, 5.4vw, 1.5rem); padding: .38em .66em }
+
+  .card-home { padding: 26px 18px 34px }
+  .card-home > * + * { margin-top: 18px }
+  #homeNew h2 { font-size: clamp(2.1rem, 10vw, 2.7rem) }
+  .card-home .lead { font-size: .98rem }
+  .btn.cta { padding: 17px 18px; font-size: .84rem }
+  .ctameta { flex-direction: column; gap: 5px }
+  .ctameta span:last-child { text-align: left }
+  .setupline { flex-direction: column; align-items: flex-start; gap: 8px }
+  .homelinks { gap: 16px 20px; margin-top: 22px }
+  .how.howgrid { grid-template-columns: 1fr; padding: 15px }
+  #homeKeys { font-size: .58rem; letter-spacing: .1em }
+
+  .card { padding: 22px 18px 26px }
+  .card-setup { padding: 22px 18px 26px }
+  .setupfoot { flex-direction: column; align-items: stretch; gap: 12px }
+  .setupfoot .btn { width: 100% }
+  .setupstats { text-align: center }
+  .finalrow { gap: 16px 22px; flex-wrap: wrap }
+  .finalrow .stat b { font-size: 1.7rem }
+  .nbfilters input, .nbfilters select { flex: 1 1 100% }
   .chgrid { grid-template-columns: 1fr }
-  .finalrow { gap: 16px; flex-wrap: wrap }
+  .nbactions .btn { flex: 1 1 140px }
+}
+
+/* Celular deitado: sobra largura e falta altura. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .card-home { padding: 16px 20px }
+  .card-home > * + * { margin-top: 12px }
+  #homeNew h2 { font-size: 2rem; margin-bottom: 8px }
+  #homeNew, #homeVet { padding-top: 0 }
+  .btn.cta { padding: 14px 18px }
+  #howBox, #homeKeys { display: none }
+  #defcard { bottom: 12px }
+  #defcard .dw { font-size: 1.5rem }
+}
+
+/* Dedo em vez de mouse: alvos maiores, sem depender de hover. */
+@media (pointer: coarse) {
+  .iconbtn { min-width: 44px; height: 44px; opacity: .8 }
+  .chip { padding: 11px 16px; font-size: .82rem }
+  .linkbtn { padding: 8px 0; font-size: .7rem }
+  .minibtn { padding: 4px 0 }
+  .setupline { padding: 16px }
+}
+body.is-touch .toolhint { display: block }
+
+@media (prefers-reduced-motion: reduce) {
+  .word { transition: opacity .3s ease }
+  .word.shake .inner { animation: none }
+  #clist li { animation: none }
+  .btn:hover { transform: none }
+  .bartrack > i { transition: none }
 }

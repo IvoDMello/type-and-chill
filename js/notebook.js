@@ -31,10 +31,15 @@ window.TCNotebook = (function () {
     var opt = document.createElement("option");
     opt.value = ""; opt.textContent = "Todos os temas";
     themeEl.appendChild(opt);
-    Object.keys(window.WORD_THEMES).forEach(function (k) {
-      var o = document.createElement("option");
-      o.value = k; o.textContent = window.WORD_THEMES[k].label;
-      themeEl.appendChild(o);
+    TCWordbank.groupsOf(window.WORD_THEMES, window.WORD_GROUPS).forEach(function (g) {
+      var grp = document.createElement("optgroup");
+      grp.label = g.label;
+      g.themes.forEach(function (k) {
+        var o = document.createElement("option");
+        o.value = k; o.textContent = window.WORD_THEMES[k].label;
+        grp.appendChild(o);
+      });
+      themeEl.appendChild(grp);
     });
 
     [searchEl, themeEl, levelEl, statusEl].forEach(function (n) {

@@ -23,9 +23,9 @@
   function q(sel) { return document.querySelector(sel); }
 
   var stage, elScore, elCombo, elLearned, elWpm, elLvl, elLvlPrefix,
-      elLives, elLivesLabel, clist, defcard, startBtn, poolNote,
-      startScreen, pauseScreen, overScreen, ghostEl,
-      musicBtn, sfxBtn, ptBtn;
+      elLives, elLivesLabel, lifeBox, clist, defcard, startBtn, poolNote,
+      startScreen, pauseScreen, overScreen, setupScreen, ghostEl,
+      musicBtn, sfxBtn, ptBtn, touchInput;
 
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion:reduce)").matches;
 
@@ -39,6 +39,12 @@
   var lastSpawn = 0, spawnInterval = 2100, lastFrame = 0;
   var recent = [], learnedRun = [];
   var W = window.innerWidth, H = window.innerHeight;
+
+  /* Área útil de queda. O palco ocupa a tela toda, mas as palavras só podem
+   * nascer e cair onde nada as cobre: fora do HUD, fora da lista lateral de
+   * capturadas e acima da faixa reservada ao cartão de definição. Antes as
+   * palavras caíam por trás desses painéis e ficavam ilegíveis. */
+  var field = { left: 24, right: 800, top: 0, bottom: 600 };
 
   // partida corrente (desafio determinístico)
   var run = { challenge: null, rng: null, deck: [], deckIdx: 0, ghost: null, ghostBeaten: false };
@@ -70,18 +76,67 @@
     if (mode === "practice") return TCStore.practiceQueue().length;
     return buildPool().length;
   }
-  function updateStartBtn() {
+  function updateStartBtn() { updateCta(); }
+
+  /* ~12 segundos por palavra é o ritmo médio de uma revisão. */
+  function minutesFor(count) { return Math.max(1, Math.round(count * 12 / 60)); }
+
+  /* A ação primária muda conforme o caderno: quem tem revisão vencida revisa,
+   * quem não tem joga. O outro caminho fica logo abaixo, como texto — ao
+   * alcance, mas sem disputar atenção com o botão. */
+  var ctaPractice = false;
+  function updateCta(counts) {
+    var c = counts || TCStore.counts();
     var n = activePoolSize();
-    startBtn.disabled = n === 0;
+    var alt = el("altStartBtn");
+    ctaPractice = mode !== "practice" && c.due > 0;
+
     if (mode === "practice") {
+      el("startLabel").textContent = n ? "Revisar " + n + " palavras" : "Nada para revisar";
+      el("ctaHint").textContent = n ? "Modo prática · ~" + minutesFor(n) + " min" : "";
+      startBtn.disabled = n === 0;
+      alt.hidden = false;
+      alt.textContent = "Partida nova · Clássico";
       poolNote.textContent = n === 0
-        ? "Nada para revisar agora — jogue uma partida ou volte quando o agendamento vencer."
-        : n + (n === 1 ? " palavra na fila de revisão" : " palavras na fila de revisão");
+        ? "Jogue uma partida ou volte quando o agendamento vencer"
+        : n + (n === 1 ? " palavra na fila" : " palavras na fila");
+    } else if (ctaPractice) {
+      el("startLabel").textContent = "Revisar " + c.due + " palavras";
+      el("ctaHint").textContent = "Modo prática · ~" + minutesFor(c.due) + " min";
+      startBtn.disabled = false;
+      alt.hidden = false;
+      alt.textContent = "Partida nova · " + MODES[mode].label;
+      poolNote.textContent = n + " palavras neste sorteio";
     } else {
+      el("startLabel").textContent = "Começar";
+      el("ctaHint").textContent = MODES[mode].label + (mode === "classic" ? " · 3 vidas" : " · sem fim");
+      startBtn.disabled = n === 0;
+      alt.hidden = true;
       poolNote.textContent = n === 0
-        ? "Escolha ao menos um tema e um nível."
+        ? "Escolha ao menos um tema e um nível"
         : n + " palavras neste sorteio";
     }
+  }
+
+  /* Uma linha resume tudo que o painel de ajustes contém. */
+  function themeSummary() {
+    var all = Object.keys(window.WORD_THEMES);
+    var sel = prefs.themes && prefs.themes.length ? prefs.themes : all;
+    if (sel.length >= all.length) return "todos os temas";
+    if (sel.length === 1) return window.WORD_THEMES[sel[0]].label;
+    return sel.length + " temas";
+  }
+  function levelSummary() {
+    var sel = prefs.levels && prefs.levels.length ? prefs.levels : window.WORD_LEVELS;
+    return sel.length >= window.WORD_LEVELS.length ? "A2–C1" : sel.join(" · ");
+  }
+  function updateSetupSummary() {
+    var v = window.TC_VISUALS[prefs.visual];
+    var partes = [MODES[mode].label];
+    if (mode === "practice") partes.push("fila do caderno");
+    else { partes.push(themeSummary()); partes.push(levelSummary()); }
+    if (v) partes.push(v.label);
+    el("setupSummary").textContent = partes.join(" · ");
   }
 
   // ---------- Chips ----------
@@ -108,6 +163,53 @@
     return cur.indexOf(key) >= 0;
   }
 
+  function setThemes(keys) {
+    if (!keys || !keys.length) return;            // nunca deixa tudo desligado
+    prefs.themes = keys.slice();
+    TCStore.savePrefs();
+    renderThemeChips();
+    updateStartBtn();
+  }
+
+  /* Botãozinho de texto ao lado do nome da família. */
+  function miniBtn(label, onClick) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "minibtn"; b.textContent = label;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  /* Vinte temas numa lista só viram um paredão de fichinhas: aqui eles saem
+   * separados pelas famílias declaradas em WORD_GROUPS, e cada família tem um
+   * atalho para jogar só com ela. */
+  function renderThemeChips() {
+    var themeKeys = Object.keys(window.WORD_THEMES);
+    var box = el("themeChips"); box.innerHTML = "";
+
+    TCWordbank.groupsOf(window.WORD_THEMES, window.WORD_GROUPS).forEach(function (g) {
+      var wrap = document.createElement("div");
+      wrap.className = "chipgroup";
+
+      var head = document.createElement("p");
+      head.className = "chiphead";
+      var name = document.createElement("span");
+      name.textContent = g.label;
+      head.appendChild(name);
+      head.appendChild(miniBtn("só este", function () { setThemes(g.themes); }));
+      wrap.appendChild(head);
+
+      var row = document.createElement("div");
+      row.className = "chips";
+      g.themes.forEach(function (k) {
+        row.appendChild(chip(window.WORD_THEMES[k].label, themeEnabled(k), function () {
+          return toggleIn("themes", k, themeKeys);
+        }));
+      });
+      wrap.appendChild(row);
+      box.appendChild(wrap);
+    });
+  }
+
   function renderConfig() {
     var modeBox = el("modeChips"); modeBox.innerHTML = "";
     Object.keys(MODES).forEach(function (k) {
@@ -118,13 +220,7 @@
       }, "chip-mode"));
     });
 
-    var themeKeys = Object.keys(window.WORD_THEMES);
-    var themeBox = el("themeChips"); themeBox.innerHTML = "";
-    themeKeys.forEach(function (k) {
-      themeBox.appendChild(chip(window.WORD_THEMES[k].label, themeEnabled(k), function () {
-        return toggleIn("themes", k, themeKeys);
-      }));
-    });
+    renderThemeChips();
 
     var levelBox = el("levelChips"); levelBox.innerHTML = "";
     window.WORD_LEVELS.forEach(function (l) {
@@ -148,6 +244,18 @@
 
     renderPrefChips();
     el("vocabConfig").hidden = (mode === "practice");
+    updateSetupSummary();
+  }
+
+  // ---------- Painel de ajustes ----------
+  function setupOpen() { return !setupScreen.hasAttribute("hidden"); }
+  function openSetup() {
+    renderConfig(); updateModeBlurb(); updateStartBtn();
+    setupScreen.removeAttribute("hidden");
+  }
+  function closeSetup() {
+    setupScreen.setAttribute("hidden", "");
+    refreshHeader();
   }
 
   /* As mesmas preferências dos botões do HUD, também na tela inicial —
@@ -202,6 +310,43 @@
     TCAudio.setMood(window.TC_VISUALS[key].audio);
     var meta = q('meta[name="theme-color"]');
     if (meta) meta.setAttribute("content", window.TC_VISUALS[key].swatch[1]);
+  }
+
+  // ---------- Área de jogo ----------
+  /* Mede os painéis de verdade em vez de chutar valores: assim continua certo
+   * quando a lista some no responsivo ou o cartão muda de altura. */
+  function computeField() {
+    // no celular o teclado virtual encolhe a viewport visível; sem isto as
+    // palavras cairiam atrás dele
+    var vh = (window.visualViewport && window.visualViewport.height) || H;
+    var pad = Math.max(18, Math.min(40, W * 0.02));
+    var right = W - pad;
+
+    var collected = el("collected");
+    if (collected && getComputedStyle(collected).display !== "none") {
+      right = Math.min(right, collected.getBoundingClientRect().left - 18);
+    }
+
+    var hud = el("hud");
+    var top = hud ? hud.getBoundingClientRect().bottom + 18 : 88;
+
+    // faixa de baixo reservada ao cartão de definição. Generosa de propósito:
+    // o cartão cresce quando a definição quebra em duas linhas ou quando a
+    // tradução está ligada, e a linha do horizonte não pode cair sobre ele.
+    var reserva = Math.max(140, Math.min(250, Math.round(vh * 0.27)));
+    var bottom = Math.max(top + 100, vh - reserva);
+
+    field = { left: pad, right: Math.max(pad + 160, right), top: top, bottom: bottom };
+
+    // a dissolvência termina abaixo do topo da área: a palavra chega quase
+    // apagada na altura do HUD e só ganha corpo depois de passar por ele
+    document.documentElement.style.setProperty("--stage-fade", Math.round(top + 38) + "px");
+    var horizon = el("horizon");
+    if (horizon) {
+      horizon.style.top = bottom + "px";
+      horizon.style.left = field.left + "px";
+      horizon.style.width = (field.right - field.left) + "px";
+    }
   }
 
   // ---------- Reaproveitamento de elementos ----------
@@ -295,7 +440,8 @@
 
     var rnd = run.rng || Math.random;
     var wpx = measure(node, data.text);
-    var x = 20 + rnd() * Math.max(1, (W - wpx - 40));
+    var faixa = Math.max(1, (field.right - field.left) - wpx);
+    var x = field.left + rnd() * faixa;
     var base = TCScoring.fallSpeed(level, mode);
 
     var w = {
@@ -436,16 +582,20 @@
     elLvl.textContent = mode === "classic" ? level : MODES[mode].label;
 
     if (mode === "classic") {
+      // três pontinhos dizem o mesmo que "VIDAS 3" e ocupam um quinto do espaço
+      lifeBox.className = "lifebox dots";
       elLivesLabel.textContent = "Vidas";
       elLives.className = "lives";
       var html = "";
-      for (var i = 0; i < 3; i++) html += '<span class="heart' + (i < lives ? "" : " lost") + '">♥</span>';
+      for (var i = 0; i < 3; i++) html += '<i class="pip' + (i < lives ? "" : " lost") + '"></i>';
       elLives.innerHTML = html;
     } else if (mode === "practice") {
+      lifeBox.className = "lifebox";
       elLivesLabel.textContent = "Restantes";
       elLives.className = "lives count";
       elLives.textContent = Math.max(0, practiceTotal - practiceDone);
     } else {
+      lifeBox.className = "lifebox";
       elLivesLabel.textContent = "Melhor sequência";
       elLives.className = "lives count";
       elLives.textContent = "×" + session.bestCombo;
@@ -466,9 +616,15 @@
     }
     return li;
   }
+  /* Durante a partida a lista é só um rastro que se apaga: a palavra e nada
+   * mais. O cartão completo — classe, definição, tradução — fica para o resumo
+   * do fim, onde existe espaço e tempo de ler. */
   function addCollected(w) {
-    clist.insertBefore(wordRow(w), clist.firstChild);
-    while (clist.children.length > 12) clist.removeChild(clist.lastChild);
+    var li = document.createElement("li");
+    li.textContent = w.text;
+    clist.insertBefore(li, clist.firstChild);
+    while (clist.children.length > 8) clist.removeChild(clist.lastChild);
+    el("collected").classList.add("has-words");
   }
 
   var defTimer = null;
@@ -486,16 +642,52 @@
 
   // ---------- Entrada ----------
   function overlayOpen() {
-    return TCNotebook.isOpen() || TCChallengeUI.isOpen();
+    return TCNotebook.isOpen() || TCChallengeUI.isOpen() || setupOpen();
+  }
+  function isTyping(e) {
+    var t = e.target;
+    return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT");
+  }
+  function homeOpen() {
+    return !running && !over && !startScreen.hasAttribute("hidden");
+  }
+  function openNotebook() {
+    if (running && !over && !paused) pause();
+    blurTouch();
+    TCNotebook.open();
   }
 
   function onKey(e) {
     if (overlayOpen()) {
-      if (e.key === "Escape") { TCNotebook.close(); TCChallengeUI.close(); }
+      if (e.key === "Escape") {
+        if (setupOpen()) closeSetup();
+        else { TCNotebook.close(); TCChallengeUI.close(); }
+      }
       return;
     }
-    // Só Esc pausa. Nenhuma letra é atalho: "p" precisa continuar sendo
-    // digitável, senão 84 palavras do banco viram impossíveis.
+
+    // Atalhos sempre com Alt. Letra sozinha nunca é atalho durante a partida:
+    // "p" precisa continuar digitável, senão 84 palavras do banco viram
+    // impossíveis de capturar.
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key && e.key.length === 1) {
+      var a = e.key.toLowerCase();
+      if (a === "p") { e.preventDefault(); setPref("showPT", !prefs.showPT); return; }
+      if (a === "m") { e.preventDefault(); setPref("music", !prefs.music); return; }
+      if (a === "s") { e.preventDefault(); setPref("sfx", !prefs.sfx); return; }
+      if (a === "c") { e.preventDefault(); openNotebook(); return; }
+    }
+
+    // Na tela inicial não se digita palavra nenhuma, então ali as letras
+    // podem ser atalhos sem risco.
+    if (homeOpen()) {
+      if (isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === "Enter") { e.preventDefault(); if (!startBtn.disabled) startBtn.click(); return; }
+      var hk = (e.key || "").toLowerCase();
+      if (hk === "a") { e.preventDefault(); openSetup(); return; }
+      if (hk === "c") { e.preventDefault(); openNotebook(); return; }
+      return;
+    }
+
     if (e.key === "Escape") {
       if (running && !over) { e.preventDefault(); paused ? resume() : pause(); }
       return;
@@ -506,7 +698,10 @@
     k = k.toLowerCase();
     if (k < "a" || k > "z") return;
     e.preventDefault();
+    handleLetter(k);
+  }
 
+  function handleLetter(k) {
     session.keystrokes += 1;
 
     if (target) {
@@ -534,6 +729,51 @@
       session.correctKeys += 1;
       setTarget(cand); cand.typed = 1; TCAudio.key(); paintWord(cand);
       if (cand.text.length <= 1) capture(cand);
+    }
+  }
+
+  /* Celular: um campo invisível recebe o foco e o teclado do sistema sobe.
+   * Ler o evento "input" é o único caminho confiável — os teclados virtuais do
+   * Android disparam keydown sem a tecla (o famoso keyCode 229). */
+  var isTouch = false;
+  function focusTouch() {
+    if (!isTouch || !touchInput) return;
+    try { touchInput.focus({ preventScroll: true }); } catch (err) { touchInput.focus(); }
+  }
+  function blurTouch() {
+    if (isTouch && touchInput) touchInput.blur();
+  }
+  function setupTouch() {
+    isTouch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    if (!isTouch || !touchInput) return;
+    document.body.classList.add("is-touch");
+    var hint = q(".toolhint");
+    if (hint) hint.textContent = "Toque na tela para digitar";
+
+    touchInput.addEventListener("input", function () {
+      var v = touchInput.value;
+      touchInput.value = "";
+      if (!running || paused || over) return;
+      for (var i = 0; i < v.length; i++) {
+        var c = v[i].toLowerCase();
+        if (c >= "a" && c <= "z") handleLetter(c);
+      }
+    });
+    touchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === "Backspace") e.preventDefault();
+    });
+
+    // tocar no palco devolve o foco (e o teclado) sem roubar cliques de botão
+    document.addEventListener("pointerdown", function (e) {
+      if (!running || paused || over) return;
+      var t = e.target;
+      if (t && t.closest && t.closest("button, input, select, a, .overlay")) return;
+      focusTouch();
+    });
+
+    // o teclado subindo encolhe a viewport: a área de queda acompanha
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", function () { computeField(); });
     }
   }
 
@@ -574,7 +814,7 @@
       lastSpawn = now;
     }
 
-    var limit = H - 64;
+    var limit = field.bottom;
     for (var i = words.length - 1; i >= 0; i--) {
       var w = words[i];
       w.y += w.speed * dt;
@@ -601,6 +841,7 @@
     recent = []; learnedRun = [];
     practiceDone = 0;
     clist.innerHTML = "";
+    el("collected").classList.remove("has-words");
     defcard.classList.remove("show");
     session = { startedAt: Date.now(), pausedAt: 0, pausedMs: 0, keystrokes: 0, correctKeys: 0, chars: 0, bestCombo: 1 };
     updateHUD();
@@ -637,14 +878,28 @@
     TCStore.touchDay();
 
     reset();
+    computeField();          // o HUD muda de altura conforme o modo
     loadGhost();
     startScreen.setAttribute("hidden", "");
     overScreen.setAttribute("hidden", "");
+    setupScreen.setAttribute("hidden", "");
     over = false; running = true; paused = false; autoPaused = false;
+    document.body.classList.add("is-playing");
     lastSpawn = performance.now() - 1500;
+    focusTouch();
   }
 
   function restart() { start(run.challenge); }
+
+  /* Revisar pela ação primária vale só para esta sessão: o modo preferido do
+   * jogador continua o que ele escolheu no painel. */
+  function startPractice() {
+    var anterior = mode;
+    mode = "practice";
+    if (!activePoolSize()) { mode = anterior; updateStartBtn(); return; }
+    renderConfig(); updateModeBlurb();
+    start(null);
+  }
 
   function pause(automatic) {
     if (!running || over || paused) return;
@@ -657,6 +912,7 @@
       ? "Pausei sozinho quando você saiu da aba."
       : "As palavras esperam por você. Volte quando quiser.";
     pauseScreen.removeAttribute("hidden");
+    blurTouch();
   }
   function resume() {
     if (!paused) return;
@@ -665,15 +921,18 @@
     pauseScreen.setAttribute("hidden", "");
     lastSpawn = performance.now();
     TCAudio.resume();
+    focusTouch();
   }
 
   function finish() {
     if (!running && over) return;
     running = false; over = true;
+    document.body.classList.remove("is-playing");
     if (paused && session.pausedAt) { session.pausedMs += Date.now() - session.pausedAt; session.pausedAt = 0; }
     paused = false;
     pauseScreen.setAttribute("hidden", "");
     TCSpeech.cancel();
+    blurTouch();
 
     var ms = elapsedMs();
     var result = {
@@ -767,34 +1026,89 @@
 
   function toStart() {
     running = false; over = false; paused = false;
+    document.body.classList.remove("is-playing");
     run.challenge = null; run.ghost = null;
     ghostEl.hidden = true;
     clearBoard();
     pauseScreen.setAttribute("hidden", "");
     overScreen.setAttribute("hidden", "");
+    setupScreen.setAttribute("hidden", "");
     startScreen.removeAttribute("hidden");
+    blurTouch();
     renderConfig(); updateStartBtn(); refreshHeader();
   }
 
   // ---------- Cabeçalho da tela inicial ----------
+  /* Dois jogadores, duas telas. Quem chega agora quer saber o que é o jogo;
+   * quem já tem caderno quer saber o que fazer hoje. Antes os dois viam
+   * exatamente a mesma coisa. */
+  var howOpen = false;
   function refreshHeader() {
     var c = TCStore.counts();
+    var g = TCStore.goalProgress();
+
     el("homeBest").textContent = stats.best;
-    el("homeStreak").textContent = stats.streak || 0;
-    el("homeDue").textContent = c.due;
     el("homeMastered").textContent = c.mastered;
 
-    var g = TCStore.goalProgress();
+    var streak = stats.streak || 0;
+    el("homeStreak").textContent = streak;
+    el("homeStreakBox").hidden = streak < 1;
+
+    var veterano = c.total > 0;
+    el("homeNew").hidden = veterano;
+    el("homeVet").hidden = !veterano;
+    q(".homebar").hidden = !veterano;
+    if (!veterano) howOpen = true;      // quem nunca jogou lê as regras de graça
+    el("howBox").hidden = !howOpen;
+    el("howBtn").setAttribute("aria-expanded", howOpen ? "true" : "false");
+
+    var num, txt;
+    if (c.due > 0) {
+      num = c.due;
+      txt = c.due === 1 ? "palavra pra revisar hoje" : "palavras pra revisar hoje";
+    } else if (c.mastered > 0) {
+      num = c.mastered;
+      txt = "palavras dominadas · nada vencendo hoje";
+    } else {
+      num = c.total;
+      txt = "palavras no caderno · nada vencendo hoje";
+    }
+    el("homeDue").textContent = num;
+    el("vetHead").textContent = txt;
+
     el("goalFill").style.width = (g.ratio * 100) + "%";
-    el("goalText").textContent = g.done + " de " + g.goal + " palavras hoje" +
-      (g.done >= g.goal ? " — meta batida ✦" : "");
+    el("goalText").textContent = g.done >= g.goal
+      ? "Meta do dia batida ✦ · " + g.done + " palavras hoje"
+      : g.done + " de " + g.goal + " palavras hoje";
 
     el("storageWarn").hidden = TCStore.isPersisting();
+
+    updateCta(c);
+    updateSetupSummary();
   }
 
   // ---------- Ligações ----------
   function bind() {
-    startBtn.addEventListener("click", function () { start(null); });
+    startBtn.addEventListener("click", function () {
+      if (ctaPractice) startPractice(); else start(null);
+    });
+    // O caminho secundário é sempre a partida normal: quando a ação
+    // primária virou "revisar", é por aqui que se joga.
+    el("altStartBtn").addEventListener("click", function () {
+      if (mode === "practice") {
+        mode = (MODES[prefs.mode] && prefs.mode !== "practice") ? prefs.mode : "classic";
+        renderConfig(); updateModeBlurb(); updateStartBtn();
+      }
+      start(null);
+    });
+    el("setupBtn").addEventListener("click", openSetup);
+    el("setupClose").addEventListener("click", closeSetup);
+    el("setupDone").addEventListener("click", closeSetup);
+    el("howBtn").addEventListener("click", function () {
+      howOpen = !howOpen;
+      el("howBox").hidden = !howOpen;
+      this.setAttribute("aria-expanded", howOpen ? "true" : "false");
+    });
     el("againBtn").addEventListener("click", restart);
     el("homeBtn").addEventListener("click", toStart);
     el("resumeBtn").addEventListener("click", resume);
@@ -808,10 +1122,11 @@
     sfxBtn.addEventListener("click", function () { setPref("sfx", !prefs.sfx); });
     ptBtn.addEventListener("click", function () { setPref("showPT", !prefs.showPT); });
 
-    el("notebookBtn").addEventListener("click", function () {
-      if (running && !over && !paused) pause();
-      TCNotebook.open();
+    el("notebookBtn").addEventListener("click", openNotebook);
+    el("allThemesBtn").addEventListener("click", function () {
+      setThemes(Object.keys(window.WORD_THEMES));
     });
+
     el("notebookBtn2").addEventListener("click", function () { TCNotebook.open(); });
     el("notebookBtn3").addEventListener("click", function () { TCNotebook.open(); });
     el("challengeBtn").addEventListener("click", function () { TCChallengeUI.open(); });
@@ -844,9 +1159,11 @@
     var resizeTimer = null;
     window.addEventListener("resize", function () {
       W = window.innerWidth; H = window.innerHeight;
+      computeField();
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         widthCache = {};                  // a fonte é fluida: medidas mudam
+        computeField();
         TCBackdrop.resize();
       }, 120);
     });
@@ -871,22 +1188,25 @@
     mode = MODES[prefs.mode] ? prefs.mode : "classic";
 
     stage = el("stage");
-    elScore = q("#score b"); elCombo = q("#combo b");
+    elScore = q("#score b"); elCombo = el("comboVal");
     elLearned = el("learned"); elWpm = el("wpm");
     elLvl = el("lvl"); elLvlPrefix = el("lvlPrefix");
-    elLives = el("lives"); elLivesLabel = el("livesLabel");
+    elLives = el("lives"); elLivesLabel = el("livesLabel"); lifeBox = q(".lifebox");
     clist = el("clist"); defcard = el("defcard");
     startBtn = el("startBtn"); poolNote = el("poolNote");
     startScreen = el("startScreen"); pauseScreen = el("pauseScreen"); overScreen = el("overScreen");
+    setupScreen = el("setupScreen"); touchInput = el("touchInput");
     ghostEl = el("ghost");
     musicBtn = el("musicBtn"); sfxBtn = el("sfxBtn"); ptBtn = el("ptBtn");
 
     TCBackdrop.attach(el("bg"));
+    computeField();
     TCNotebook.mount();
     applyVisual(window.TC_VISUALS[prefs.visual] ? prefs.visual : "ember");
     TCSpeech.setEnabled(prefs.speak);
 
     bind();
+    setupTouch();
     renderConfig();
     updateModeBlurb();
     updateStartBtn();
