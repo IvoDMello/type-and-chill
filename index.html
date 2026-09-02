@@ -76,53 +76,71 @@
         <span class="wordmark">Type <span class="dot">&amp;</span> Chill</span>
         <span class="homebarend">
           <span class="streakline" id="homeStreakBox" hidden><b id="homeStreak">0</b> <span id="streakWord">dias seguidos</span></span>
-          <button type="button" class="gearbtn" id="optionsBtn2" title="Opções (O)" aria-label="Abrir as opções">⚙</button>
+          <button type="button" class="gearbtn" id="optionsBtn2" data-snd="open" title="Opções (O)" aria-label="Abrir as opções">⚙</button>
         </span>
       </header>
 
-      <!-- Quem chega pela primeira vez precisa saber o que é o jogo. -->
-      <div id="homeNew">
-        <div class="kicker">Um jogo relaxante de vocabulário</div>
-        <h2>Type <span class="dot">&amp;</span> Chill</h2>
-        <p class="lead">Palavras em inglês descem devagar. Digite cada uma antes que ela se apague — e o significado se acende.</p>
-      </div>
+      <!-- Duas colunas no PC: a decisão de agora à esquerda, o placar do
+           jogador à direita. No celular a coluna da direita cai para baixo. -->
+      <div class="homegrid">
+        <div class="homemain">
+          <!-- Quem chega pela primeira vez precisa saber o que é o jogo. -->
+          <div id="homeNew">
+            <div class="kicker">Um jogo relaxante de vocabulário</div>
+            <h2>Type <span class="dot">&amp;</span> Chill</h2>
+            <p class="lead">Palavras em inglês descem devagar. Digite cada uma antes que ela se apague — e o significado se acende.</p>
+          </div>
 
-      <!-- Quem já joga precisa saber o que fazer hoje. -->
-      <div id="homeVet" hidden>
-        <div class="kicker">Bom te ver de volta</div>
-        <div class="vetline">
-          <span class="bignum" id="homeDue">0</span>
-          <h2 class="vethead" id="vetHead">palavras pra revisar hoje</h2>
+          <!-- Quem já joga precisa saber o que fazer hoje. -->
+          <div id="homeVet" hidden>
+            <div class="kicker">Bom te ver de volta</div>
+            <div class="vetline">
+              <span class="bignum" id="homeDue">0</span>
+              <h2 class="vethead" id="vetHead">palavras pra revisar hoje</h2>
+            </div>
+          </div>
+
+          <p class="warn" id="storageWarn" hidden>Este navegador está bloqueando o armazenamento local: o caderno vale só até fechar a aba.</p>
+
+          <button class="btn cta" id="startBtn">
+            <span class="ctatext"><span id="startLabel">Começar</span></span>
+            <span class="ctakey">Enter</span>
+          </button>
+          <div class="ctameta">
+            <span id="ctaHint"></span>
+            <span id="poolNote"></span>
+          </div>
+
+          <button type="button" class="linkbtn altstart" id="altStartBtn" hidden></button>
+
+          <button type="button" class="setupline" id="setupBtn" data-snd="open">
+            <span class="setupsum" id="setupSummary"></span>
+            <span class="setupkey">Ajustar · A</span>
+          </button>
         </div>
-        <div class="goal">
-          <div class="bartrack"><i class="bardone" id="goalFill"></i></div>
-          <p class="goaltext" id="goalText"></p>
-        </div>
+
+        <!-- Placar do jogador. Só para quem já tem caderno: para quem chega
+             agora seriam quatro zeros disputando espaço com a apresentação. -->
+        <aside class="homerail" id="homeRail" hidden>
+          <p class="railtitle">Progresso</p>
+          <ul class="railstats">
+            <li><span class="raillabel">Recorde</span><b class="railval" id="railBest">0</b></li>
+            <li><span class="raillabel">Dominadas</span><b class="railval" id="railMastered">0</b></li>
+            <li><span class="raillabel">No caderno</span><b class="railval" id="railTotal">0</b></li>
+          </ul>
+          <div class="goal">
+            <p class="railtitle">Meta do dia</p>
+            <div class="bartrack"><i class="bardone" id="goalFill"></i></div>
+            <p class="goaltext" id="goalText"></p>
+          </div>
+        </aside>
       </div>
-
-      <p class="warn" id="storageWarn" hidden>Este navegador está bloqueando o armazenamento local: o caderno vale só até fechar a aba.</p>
-
-      <button class="btn cta" id="startBtn">
-        <span id="startLabel">Começar</span>
-        <span class="ctakey">Enter</span>
-      </button>
-      <div class="ctameta">
-        <span id="ctaHint"></span>
-        <span id="poolNote"></span>
-      </div>
-
-      <button type="button" class="linkbtn altstart" id="altStartBtn" hidden></button>
-
-      <button type="button" class="setupline" id="setupBtn">
-        <span class="setupsum" id="setupSummary"></span>
-        <span class="setupkey">Ajustar · A</span>
-      </button>
 
       <nav class="homelinks">
-        <button type="button" class="linkbtn" id="campaignBtn">Campanha</button>
-        <button type="button" class="linkbtn" id="notebookBtn2">Meu caderno</button>
-        <button type="button" class="linkbtn" id="tutorialBtn">Como estudar</button>
-        <button type="button" class="linkbtn" id="challengeBtn">Jogar com amigos</button>
+        <button type="button" class="linkbtn" id="campaignBtn" data-snd="open">Campanha</button>
+        <button type="button" class="linkbtn" id="notebookBtn2" data-snd="open">Meu caderno</button>
+        <button type="button" class="linkbtn" id="tutorialBtn" data-snd="open">Como estudar</button>
+        <button type="button" class="linkbtn" id="challengeBtn" data-snd="open">Jogar com amigos</button>
         <button type="button" class="linkbtn" id="howBtn" aria-expanded="false" aria-controls="howBox">Como jogar</button>
         <button type="button" class="linkbtn" id="installBtn" hidden>Instalar o jogo</button>
       </nav>
@@ -134,7 +152,16 @@
         <div class="row"><span class="n">04</span><span class="t">O caderno traz cada palavra de volta pouco antes de você esquecer.</span></div>
       </div>
 
-      <div class="hint" id="homeKeys">Enter começar · T campanha · C caderno · E estudar · A ajustes · O opções</div>
+      <!-- Os atalhos como teclas desenhadas: numa linha corrida de texto
+           ninguém enxergava que "T" e "campanha" eram tecla e ação. -->
+      <div class="hint keycaps" id="homeKeys">
+        <span><kbd>Enter</kbd> começar</span>
+        <span><kbd>T</kbd> campanha</span>
+        <span><kbd>C</kbd> caderno</span>
+        <span><kbd>E</kbd> estudar</span>
+        <span><kbd>A</kbd> ajustes</span>
+        <span><kbd>O</kbd> opções</span>
+      </div>
     </div>
   </div>
 
@@ -464,6 +491,7 @@
   <script src="js/storage.js"></script>
   <script src="js/themes.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/ui-fx.js"></script>
   <script src="js/speech.js"></script>
   <script src="js/notebook.js"></script>
   <script src="js/options.js"></script>

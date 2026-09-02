@@ -261,6 +261,107 @@ window.TCAudio = (function () {
     bell(mood.scale[4], t + 0.22, 0.13, 1.6, sfxBus);
   }
 
+  /* -------- sons de interface --------
+   * Clicar, passar o mouse, voltar. São os sons que dão peso de jogo ao menu:
+   * curtos, secos e bem mais baixos que os da partida — o menu é atravessado
+   * dezenas de vezes por sessão e nada cansa mais que um clique alto.
+   * Todos passam pelo barramento de efeitos, então o cursor de "efeitos" do
+   * menu de opções também controla estes. */
+  var uiOn = true;
+  var noiseBuf = null, lastHoverAt = 0;
+
+  function getNoise() {
+    if (noiseBuf) return noiseBuf;
+    var len = Math.floor(AC.sampleRate * 0.4);
+    noiseBuf = AC.createBuffer(1, len, AC.sampleRate);
+    var d = noiseBuf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return noiseBuf;
+  }
+
+  /* Um "tk" de ruído filtrado: é o corpo do clique, o que soa como plástico
+   * batendo. Sozinho fica seco demais, então quem chama junta um tom. */
+  function tick(t, freq, q, vol, dur) {
+    var s = AC.createBufferSource();
+    s.buffer = getNoise();
+    s.playbackRate.value = 0.8 + Math.random() * 0.4;
+    var f = AC.createBiquadFilter();
+    f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(sfxBus || master);
+    s.start(t); s.stop(t + dur + 0.02);
+  }
+
+  /* Um tom curto com envelope de percussão. from/to em Hz. */
+  function blip(t, from, to, vol, dur, type) {
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "triangle";
+    o.frequency.setValueAtTime(from, t);
+    if (to && to !== from) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfxBus || master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+
+  function uiReady() { return uiOn && sfxOn && !!AC; }
+
+  /* Clique numa ação: corpo de ruído + um tom que sobe. */
+  function click() {
+    if (!uiReady()) return;
+    var t = AC.currentTime;
+    tick(t, 2600, 1.1, 0.10, 0.045);
+    blip(t, 520, 880, 0.055, 0.075, "triangle");
+  }
+
+  /* Passar o mouse por cima. Precisa ser quase subliminar: o ponteiro cruza
+   * meia dúzia de botões num movimento só. */
+  function hover() {
+    if (!uiReady()) return;
+    var now = Date.now();
+    if (now - lastHoverAt < 45) return;      // varrer o menu não vira chiado
+    lastHoverAt = now;
+    blip(AC.currentTime, 1650, 1900, 0.018, 0.035, "sine");
+  }
+
+  /* Fechar, voltar, cancelar: o mesmo clique, só que descendo. */
+  function back() {
+    if (!uiReady()) return;
+    var t = AC.currentTime;
+    tick(t, 1500, 1.0, 0.07, 0.05);
+    blip(t, 620, 380, 0.05, 0.11, "triangle");
+  }
+
+  /* Botão desabilitado: um baque abafado, sem tom nenhum. */
+  function denied() {
+    if (!uiReady()) return;
+    var t = AC.currentTime;
+    tick(t, 320, 0.8, 0.09, 0.09);
+    blip(t, 180, 140, 0.045, 0.12, "sine");
+  }
+
+  /* Ligar/desligar uma chave: dois degraus, para cima ou para baixo. */
+  function toggle(on) {
+    if (!uiReady()) return;
+    var t = AC.currentTime;
+    tick(t, 2200, 1.2, 0.07, 0.04);
+    if (on) { blip(t, 620, 620, 0.05, 0.05); blip(t + 0.055, 930, 930, 0.05, 0.09); }
+    else { blip(t, 780, 780, 0.045, 0.05); blip(t + 0.055, 500, 500, 0.045, 0.09); }
+  }
+
+  /* Abrir um painel: um sopro curto que sobe, tipo HUD acendendo. */
+  function open() {
+    if (!uiReady()) return;
+    var t = AC.currentTime;
+    tick(t, 1800, 0.7, 0.05, 0.14);
+    blip(t, 440, 990, 0.05, 0.16, "sine");
+  }
+
+  function setUiSfx(on) { uiOn = !!on; }
+
   // -------- controles --------
   function setMusic(on) {
     musicOn = !!on;
@@ -291,6 +392,8 @@ window.TCAudio = (function () {
   return {
     init: init, resume: resume, setMood: setMood,
     key: key, capture: capture, miss: miss, levelUp: levelUp,
+    click: click, hover: hover, back: back, denied: denied,
+    toggle: toggle, open: open, setUiSfx: setUiSfx,
     setMusic: setMusic, setSfx: setSfx,
     setMusicVolume: setMusicVolume, setSfxVolume: setSfxVolume, volumes: volumes
   };

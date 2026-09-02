@@ -269,7 +269,7 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
 /* Sem moldura de cartão: a coluna sozinha sobre o fundo. A hierarquia vem do
    tamanho, não de caixas — e a ação primária fica antes de qualquer ajuste. */
 .card-home {
-  width: min(600px, 100%); max-height: 100vh; max-height: 100dvh; overflow-y: auto;
+  width: min(1060px, 100%); max-height: 100vh; max-height: 100dvh; overflow-y: auto;
   background: none; border: 0; border-radius: 0; box-shadow: none;
   text-align: left; padding: clamp(24px, 5vh, 48px) clamp(20px, 5vw, 28px);
   display: block;
@@ -1028,4 +1028,323 @@ body.no-motion .caret { animation: none }
 @media (max-width: 560px) {
   .captext { font-size: 1rem; line-height: 1.9; max-height: 38vh }
   .readerstats { gap: 12px }
+}
+
+/* =======================================================================
+   CARA DE JOGO
+   =======================================================================
+   Tudo desta seção é resposta: o ponteiro tem forma, o botão afunda, o
+   clique acende. Nada aqui muda uma regra do jogo — se este trecho não
+   carregar, a partida é a mesma. As cores continuam vindo só de themes.css.
+   ===================================================================== */
+
+/* ---------- A tela inicial em duas colunas ---------- */
+/* A coluna única no meio de um monitor grande era uma tira de texto num mar
+   de fundo. Agora a decisão de agora fica à esquerda, larga, e o placar do
+   jogador ocupa a direita — que antes era só vazio. */
+.homegrid {
+  display: grid; gap: clamp(20px, 3vw, 42px);
+  grid-template-columns: minmax(0, 1fr); align-items: start;
+}
+@media (min-width: 900px) {
+  .homegrid { grid-template-columns: minmax(0, 1.45fr) minmax(240px, 0.8fr) }
+}
+.homemain { min-width: 0 }
+.homemain > * + * { margin-top: 20px }
+.card-home .homegrid + * { margin-top: clamp(24px, 3vh, 34px) }
+
+/* Painel do placar. Os cantos marcados são o que separa "caixa de texto" de
+   "peça de HUD" — dois traços, e a mesma caixa vira instrumento. */
+.homerail {
+  position: relative; padding: 18px 18px 20px;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: var(--panel);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.homerail[hidden] { display: none }
+.homerail::before, .homerail::after {
+  content: ""; position: absolute; width: 16px; height: 16px;
+  border: 1px solid var(--accent); opacity: .5; pointer-events: none;
+}
+.homerail::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-radius: 16px 0 0 0 }
+.homerail::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-radius: 0 0 16px 0 }
+
+.railtitle {
+  margin: 0 0 12px; font-family: var(--mono); font-size: .56rem;
+  letter-spacing: .26em; text-transform: uppercase; color: var(--faint);
+}
+.railstats { list-style: none; margin: 0; padding: 0 }
+.railstats li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px dashed var(--border);
+}
+.railstats li:last-child { border-bottom: 0 }
+.raillabel {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--faint);
+}
+.railval {
+  font-family: var(--mono); font-weight: 700; font-size: 1.2rem; line-height: 1;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.homerail .goal { max-width: none; margin: 18px 0 0 }
+.homerail .goal .railtitle { margin-bottom: 9px }
+.homerail .goaltext { margin-top: 9px; font-size: .58rem; letter-spacing: .12em }
+
+/* ---------- Hierarquia do texto na inicial ---------- */
+/* O número grande é o assunto da tela: ganha brilho, e a frase ao lado divide
+   a linha de base com ele para os dois lerem como uma coisa só. */
+.vetline { gap: 12px; margin-bottom: 20px }
+.card-home .bignum {
+  color: var(--text); text-shadow: 0 0 34px var(--word-glow);
+  letter-spacing: -.02em;
+}
+
+/* A linha sob o botão dizia duas coisas importantes em cinza quase invisível.
+   Continua discreta, mas agora dá para ler — e o lado esquerdo, que é o modo
+   escolhido, ganha um ponto de cor. */
+.ctameta {
+  margin-top: 12px; font-size: .64rem; letter-spacing: .14em; color: var(--muted);
+  align-items: baseline;
+}
+.ctameta span:first-child { display: inline-flex; align-items: baseline; gap: 8px }
+.ctameta span:first-child::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 8px var(--word-glow); flex: none;
+}
+.ctameta span:last-child { color: var(--faint) }
+
+/* ---------- Atalhos como teclas ---------- */
+.keycaps { display: flex; flex-wrap: wrap; gap: 9px 18px; align-items: center }
+.keycaps > span { display: inline-flex; align-items: center; gap: 7px }
+.keycaps kbd {
+  font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: none; color: var(--muted);
+  background: var(--field); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px;
+  transition: color .2s, border-color .2s;
+}
+.keycaps:hover kbd { color: var(--text); border-color: var(--border-hi) }
+
+/* ---------- Menu: cada item com sua seta ---------- */
+.homelinks { gap: 14px 26px }
+.homelinks .linkbtn {
+  position: relative; padding-left: 17px;
+  transition: color .18s, transform .18s;
+}
+.homelinks .linkbtn::before {
+  content: "\25B8"; position: absolute; left: 2px; top: 50%;
+  transform: translate(-6px, -50%); color: var(--accent);
+  opacity: 0; transition: opacity .18s, transform .18s;
+}
+.homelinks .linkbtn:hover, .homelinks .linkbtn:focus-visible { color: var(--text); transform: translateX(3px) }
+.homelinks .linkbtn:hover::before, .homelinks .linkbtn:focus-visible::before { opacity: 1; transform: translate(0, -50%) }
+
+/* ---------- Botões que reagem ---------- */
+/* Três camadas de resposta, em ordem de intensidade: um brilho que atravessa
+   no hover, um respingo no ponto do dedo, e o afundar no clique. */
+.btn, .chip, .seg, .switch, .iconbtn, .capbtn, .setupline, .opttab, .gearbtn {
+  position: relative; overflow: hidden;
+}
+.btn::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.32) 50%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform .6s cubic-bezier(.3,.8,.3,1);
+}
+.btn:hover::after, .btn:focus-visible::after { transform: translateX(130%) }
+.btn.ghostbtn::after { background: linear-gradient(105deg, transparent 40%, var(--word-bg-on) 50%, transparent 60%) }
+
+/* O afundar. Vale para qualquer controle, e vence o hover enquanto o dedo
+   estiver em cima — por isso o !important, que aqui é justamente o ponto. */
+.is-press {
+  transform: scale(.965) !important;
+  transition-duration: .06s !important;
+}
+.btn.cta.is-press { transform: scale(.99) !important }
+
+.chip, .seg, .switch { transition: color .18s, border-color .18s, background .18s, box-shadow .18s, transform .18s }
+.chip:hover, .seg:hover, .switch:hover { transform: translateY(-1px) }
+.iconbtn { transition: color .2s, border-color .2s, background .2s, opacity .2s, transform .2s }
+.iconbtn:hover, .iconbtn:focus-visible { transform: translateY(-2px) }
+
+/* Respingo de luz de dentro do botão, no ponto exato do clique. */
+.rip {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255,255,255,0.45), rgba(255,255,255,0) 62%);
+  transform: scale(0); opacity: .85;
+  animation: ripOut .6s cubic-bezier(.2,.8,.3,1) forwards;
+}
+@keyframes ripOut { to { transform: scale(1); opacity: 0 } }
+
+/* Anel no ponto do clique, mesmo fora dos botões. */
+.clickburst {
+  position: fixed; z-index: 9996; pointer-events: none;
+  width: 58px; height: 58px; margin: -29px 0 0 -29px;
+  border: 1.5px solid var(--accent); border-radius: 50%;
+  transform: scale(.14); opacity: .9;
+  animation: burstOut .5s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.clickburst.forte { border-color: var(--letter-next); box-shadow: 0 0 22px var(--word-glow) }
+@keyframes burstOut { to { transform: scale(1); opacity: 0 } }
+
+/* ---------- A ação primária ---------- */
+/* Um anel que pulsa por cima do botão: chama o olho sem mexer no botão em si,
+   então nada disso briga com o hover nem com o afundar do clique. */
+.btn.cta { border-radius: 16px; letter-spacing: .1em }
+.btn.cta .ctatext { display: inline-flex; align-items: center; gap: 12px; min-width: 0 }
+.btn.cta .ctatext::before {
+  content: "\25B6"; font-size: .78em; opacity: .7; flex: none;
+  transition: transform .25s cubic-bezier(.2,.9,.3,1.4), opacity .25s;
+}
+.btn.cta:hover .ctatext::before { transform: translateX(4px); opacity: 1 }
+.btn.cta::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  border: 1px solid var(--letter-next); opacity: 0; pointer-events: none;
+  animation: ctaRing 3.2s ease-in-out infinite;
+}
+.btn.cta[disabled]::before { animation: none; opacity: 0 }
+@keyframes ctaRing { 0%, 100% { opacity: 0 } 50% { opacity: .45 } }
+
+/* ---------- Painéis que abrem ---------- */
+.overlay::before, .overlay::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--border-hi), transparent);
+  opacity: .45;
+}
+.overlay::before { top: 0 }
+.overlay::after { bottom: 0 }
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px) scale(.985) }
+  to { opacity: 1; transform: none }
+}
+.overlay:not([hidden]) > .card { animation: cardIn .3s cubic-bezier(.2,.9,.3,1.1) }
+
+/* ---------- HUD da partida ---------- */
+/* Pontos, vidas e pausa viram um instrumento só, encaixado num painel — em
+   vez de três números soltos flutuando por cima do fundo. */
+body.is-playing #hud .stats {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 8px clamp(10px, 1.4vw, 16px);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+body.is-playing #hud .stats .iconbtn { background: none; border-color: transparent }
+
+/* Vinheta: fecha as bordas da tela e junta o que está no meio. É o truque
+   mais barato que existe para uma página parecer um jogo. */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 9990; pointer-events: none;
+  background: radial-gradient(128% 104% at 50% 46%, transparent 54%, rgba(0,0,0,0.30) 100%);
+}
+
+/* ---------- Cursor próprio ---------- */
+/* O cursor do sistema só some depois que a seta aparece (a classe entra no
+   primeiro movimento do ponteiro): se esta folha carregar e o script não,
+   ninguém fica sem cursor nenhum. */
+body.tc-cursor, body.tc-cursor * { cursor: none !important }
+
+/* Menos onde o cursor do sistema diz algo que um desenho não diria: num campo
+   de texto o I mostra onde a letra vai cair. Ali a seta some e o nativo volta. */
+body.tc-cursor input, body.tc-cursor textarea,
+body.tc-cursor [contenteditable="true"] { cursor: text !important }
+body.tc-cursor select { cursor: pointer !important }
+
+#curArrow, #curTrail {
+  position: fixed; left: 0; top: 0; z-index: 9998;
+  pointer-events: none; will-change: transform;
+}
+
+/* A seta. Miolo na cor do texto para ler em qualquer clima, contorno no tom de
+   destaque, e uma sombra fininha para ela nunca sumir dentro de um botão. */
+#curArrow {
+  width: 22px; height: 22px; z-index: 9999;
+  transition: opacity .18s ease;
+}
+#curArrow svg {
+  display: block; width: 100%; height: 100%; overflow: visible;
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.5);
+  transform-origin: 16% 10%;                 /* a ponta, que é o hotspot */
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.45));
+}
+#curArrow path {
+  fill: var(--text);
+  stroke: var(--accent); stroke-width: 1.4;
+  stroke-linejoin: round; paint-order: stroke fill;
+}
+
+/* Sobre um controle a seta cresce um tico e acende; apertada, ela recua. */
+#curArrow.over svg { transform: scale(1.14) }
+#curArrow.over path { fill: var(--accent); stroke: var(--letter-next) }
+#curArrow.down svg { transform: scale(.88) }
+#curArrow.text, #curTrail.text { opacity: 0 }
+
+/* O rastro: contas da cor do tema que perseguem a seta e afinam para trás.
+   O JS apaga o conjunto inteiro quando a mão para — parado não há rastro. */
+#curTrail { width: 0; height: 0; transition: opacity .25s ease }
+#curTrail i {
+  position: absolute; left: 0; top: 0; display: block; border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--word-glow);
+  transform-origin: 0 50%;                   /* o eixo é a ponta de trás */
+  will-change: transform;
+}
+
+body.cur-out #curArrow, body.cur-out #curTrail { opacity: 0 }
+
+/* ---------- Quem pediu menos movimento ---------- */
+body.no-motion .btn.cta::before { animation: none; opacity: 0 }
+body.no-motion .overlay:not([hidden]) > .card { animation: none }
+body.no-motion .btn::after { display: none }
+body.no-motion .rip, body.no-motion .clickburst { display: none }
+body.no-motion .is-press { transform: none !important }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.cta::before { animation: none; opacity: 0 }
+  .overlay:not([hidden]) > .card { animation: none }
+  .btn::after { display: none }
+  .rip, .clickburst { display: none }
+  .chip:hover, .seg:hover, .switch:hover, .iconbtn:hover { transform: none }
+  .homelinks .linkbtn:hover { transform: none }
+}
+
+/* ---------- Dedo em vez de mouse ---------- */
+/* Nada de mira nem de brilho de hover: no toque não existe "passar por cima",
+   e o que sobra é um efeito que nunca dispara gastando bateria. */
+@media (pointer: coarse) {
+  #curArrow, #curTrail { display: none }
+  .btn::after { display: none }
+  .keycaps { display: none }
+}
+
+@media (max-width: 899px) {
+  /* Numa coluna só, o placar vem depois da ação, nunca antes dela. */
+  .homerail { order: 2 }
+  .homerail .goal { margin-top: 16px }
+}
+
+/* Sem placar (jogador novo), a segunda coluna vira uma faixa morta à direita
+   e a apresentação fica torta na tela. Onde :has existe a grade fecha; onde
+   não existe, sobra o espaço de antes — nada quebra. */
+.homegrid:has(> .homerail[hidden]) { grid-template-columns: minmax(0, 1fr) }
+@media (min-width: 900px) {
+  .homegrid:has(> .homerail[hidden]) { grid-template-columns: minmax(0, 1fr) }
+  .homegrid:has(> .homerail[hidden]) .homemain { max-width: 720px }
+}
+
+/* A linha de ajustes ganha um marcador à esquerda no hover: o mesmo idioma
+   dos itens do menu, para as duas coisas responderem igual. */
+.setupline::before {
+  content: ""; position: absolute; left: 0; top: 12%; bottom: 12%; width: 2px;
+  background: var(--accent); border-radius: 2px;
+  transform: scaleY(0); transform-origin: center;
+  transition: transform .2s cubic-bezier(.2,.9,.3,1.3);
+}
+.setupline:hover::before, .setupline:focus-visible::before { transform: scaleY(1) }
+
+/* No toque a seta do menu nunca aparece, então o recuo que abria espaço para
+   ela só empurrava o texto para dentro. */
+@media (pointer: coarse) {
+  .homelinks .linkbtn { padding-left: 0 }
+  .setupline::before { display: none }
 }

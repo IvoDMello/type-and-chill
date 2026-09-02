@@ -1156,6 +1156,11 @@
     el("homeBest").textContent = stats.best;
     el("homeMastered").textContent = c.mastered;
 
+    // o mesmo placar, agora também no painel lateral da tela inicial
+    el("railBest").textContent = stats.best;
+    el("railMastered").textContent = c.mastered;
+    el("railTotal").textContent = c.total;
+
     var streak = stats.streak || 0;
     var frozen = TCStore.streakFrozenToday();
     el("homeStreak").textContent = streak;
@@ -1168,6 +1173,7 @@
     var veterano = c.total > 0;
     el("homeNew").hidden = veterano;
     el("homeVet").hidden = !veterano;
+    el("homeRail").hidden = !veterano;
     // A barra do topo fica, mesmo para quem chega agora: some só o wordmark,
     // que seria repetição do título grande. Escondê-la inteira levava junto a
     // engrenagem, e um jogador novo ficava sem caminho nenhum até as opções.

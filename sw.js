@@ -9,7 +9,7 @@
  * uma partida), com atualização em segundo plano. Troque CACHE quando publicar
  * uma versão nova.
  */
-var CACHE = "type-and-chill-v1";
+var CACHE = "type-and-chill-v2";
 var SHELL = [
   "./",
   "./index.html",
@@ -28,6 +28,7 @@ var SHELL = [
   "./js/storage.js",
   "./js/themes.js",
   "./js/audio.js",
+  "./js/ui-fx.js",
   "./js/speech.js",
   "./js/notebook.js",
   "./js/challengeui.js",

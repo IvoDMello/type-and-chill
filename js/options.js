@@ -67,6 +67,12 @@ window.TCOptions = (function () {
         document.documentElement.style.setProperty("--word-scale", value); break;
       case "showCollected":
         document.body.classList.toggle("hide-collected", !value); break;
+      case "uiSfx":
+      case "cursor":
+        // as duas vivem no mesmo módulo, que relê as preferências inteiras
+        if (window.TCUiFx) TCUiFx.apply(prefs());
+        if (key === "uiSfx" && value) { TCAudio.init(); TCAudio.resume(); TCAudio.click(); }
+        break;
       default: break;      // showPT, showExample, dailyGoal, name: só gravar
     }
   }
@@ -93,6 +99,7 @@ window.TCOptions = (function () {
     applyOne("motion", p.motion);
     applyOne("wordScale", p.wordScale);
     applyOne("showCollected", p.showCollected);
+    if (window.TCUiFx) TCUiFx.apply(p);
   }
 
   // ---------- Peças de interface ----------
@@ -231,6 +238,8 @@ window.TCOptions = (function () {
       function () { return p.musicVol; }, function (v) { set("musicVol", v); }, pct));
     box.appendChild(toggle("sfx", "Efeitos sonoros", "Tecla, captura, erro e subida de nível",
       function () { return p.sfx; }, function (v) { set("sfx", v); }));
+    box.appendChild(toggle("uiSfx", "Sons da interface", "O clique e a passagem do mouse pelos botões",
+      function () { return p.uiSfx; }, function (v) { set("uiSfx", v); }));
     box.appendChild(slider("sfxVol", "Volume dos efeitos", null,
       { min: 0, max: 1, step: 0.05 },
       function () { return p.sfxVol; }, function (v) { set("sfxVol", v); }, pct));
@@ -278,6 +287,10 @@ window.TCOptions = (function () {
     box.appendChild(toggle("showCollected", "Lista de capturadas",
       "A coluna com as palavras desta partida",
       function () { return p.showCollected; }, function (v) { set("showCollected", v); }));
+    box.appendChild(choice("cursor", "Cursor",
+      "A seta com rastro ou a do sistema, sem efeito",
+      [{ value: "game", label: "Com rastro" }, { value: "system", label: "Sistema" }],
+      function () { return p.cursor; }, function (v) { set("cursor", v); }));
   }
 
   function buildGame(box) {
@@ -371,6 +384,7 @@ window.TCOptions = (function () {
    * "opções" — quem apaga isso é outro botão, com confirmação. */
   var RESET_KEYS = ["music", "sfx", "musicVol", "sfxVol", "speak", "showPT",
                     "quality", "motion", "wordScale", "showExample", "showCollected",
+                    "uiSfx", "cursor",
                     "dailyGoal"];
   function reset() {
     var padrao = window.TCStoreFactory.defaults().prefs;
