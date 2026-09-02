@@ -706,7 +706,8 @@
 
   // ---------- Entrada ----------
   function overlayOpen() {
-    return TCNotebook.isOpen() || TCChallengeUI.isOpen() || TCOptions.isOpen() || setupOpen();
+    return TCNotebook.isOpen() || TCChallengeUI.isOpen() || TCOptions.isOpen() ||
+           TCCampaign.isOpen() || TCTutorial.isOpen() || setupOpen();
   }
   function isTyping(e) {
     var t = e.target;
@@ -727,11 +728,23 @@
     blurTouch();
     TCOptions.open(tab);
   }
+  /* A campanha é outro modo de jogar, não um painel: se havia partida rolando,
+   * ela é encerrada antes — duas coisas pedindo o teclado ao mesmo tempo é a
+   * receita para o jogador perder as duas. */
+  function openCampaign() {
+    if (running && !over) finish();
+    blurTouch();
+    TCCampaign.open();
+  }
 
   function onKey(e) {
     if (overlayOpen()) {
       if (e.key === "Escape") {
-        if (TCOptions.isOpen()) TCOptions.close();
+        // A campanha trata o próprio Esc (no leitor volta para a lista, na
+        // lista sai para a inicial); aqui só não podemos atrapalhar.
+        if (TCCampaign.isOpen()) return;
+        if (TCTutorial.isOpen()) TCTutorial.close();
+        else if (TCOptions.isOpen()) TCOptions.close();
         else if (setupOpen()) closeSetup();
         else { TCNotebook.close(); TCChallengeUI.close(); }
       }
@@ -759,6 +772,8 @@
       if (hk === "a") { e.preventDefault(); openSetup(); return; }
       if (hk === "c") { e.preventDefault(); openNotebook(); return; }
       if (hk === "o") { e.preventDefault(); openOptions(); return; }
+      if (hk === "t") { e.preventDefault(); openCampaign(); return; }
+      if (hk === "e") { e.preventDefault(); TCTutorial.open(); return; }
       return;
     }
 
@@ -1273,6 +1288,25 @@
     });
 
     el("notebookBtn2").addEventListener("click", function () { TCNotebook.open(); });
+    el("campaignBtn").addEventListener("click", openCampaign);
+    el("tutorialBtn").addEventListener("click", function () { TCTutorial.open(); });
+    el("nbTutorial").addEventListener("click", function () {
+      TCNotebook.close();
+      TCTutorial.open("aqui");
+    });
+
+    TCCampaign.mount();
+    TCCampaign.onExit = function () { refreshHeader(); };
+    TCCampaign.onTutorial = function () { TCTutorial.open("aqui"); };
+
+    TCTutorial.mount();
+    TCTutorial.onClose = function () { refreshHeader(); };
+    TCTutorial.onNotebook = function () { TCNotebook.open(); };
+    TCTutorial.onPractice = function () {
+      mode = "practice"; prefs.mode = "practice"; TCStore.savePrefs();
+      renderConfig(); updateModeBlurb(); updateStartBtn();
+      if (activePoolSize()) start(null); else toStart();
+    };
     el("notebookBtn3").addEventListener("click", function () { TCNotebook.open(); });
     el("challengeBtn").addEventListener("click", function () { TCChallengeUI.open(); });
     el("challengeBtn2").addEventListener("click", function () {
@@ -1350,6 +1384,8 @@
     computeField();
     TCNotebook.mount();
     TCOptions.mount();
+    TCCampaign.mount();
+    TCTutorial.mount();
     TCOptions.applyAll();          // qualidade, movimento, volumes e exibição
     applyVisual(window.TC_VISUALS[prefs.visual] ? prefs.visual : "ember");
     TCSpeech.setEnabled(prefs.speak);

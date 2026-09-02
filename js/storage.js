@@ -11,6 +11,7 @@
  *   tc.notebook    → o caderno, com agendamento de revisão por palavra
  *   tc.challenges  → placar local de cada desafio (seu e dos amigos)
  *   tc.history     → uma linha por sessão, para o gráfico de evolução
+ *   tc.campaign    → capítulos concluídos, com melhor PPM e precisão
  */
 (function (root, factory) {
   var api = factory();
@@ -124,6 +125,8 @@
     var challenges = read("challenges", {}) || {};
     var history = read("history", []) || [];
     if (!Array.isArray(history)) history = [];
+    var campaign = read("campaign", {}) || {};
+    if (!campaign.chapters || typeof campaign.chapters !== "object") campaign.chapters = {};
 
     /* ---------- Migração ---------- */
     var version = read("version", 0);
@@ -169,9 +172,10 @@
     function saveNotebook() { return write("notebook", notebook); }
     function saveChallenges() { return write("challenges", challenges); }
     function saveHistory() { return write("history", history); }
+    function saveCampaign() { return write("campaign", campaign); }
     function flush() {
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-      savePrefs(); saveStats(); saveNotebook(); saveChallenges(); saveHistory();
+      savePrefs(); saveStats(); saveNotebook(); saveChallenges(); saveHistory(); saveCampaign();
     }
     function isPersisting() { return !failed; }
 
@@ -478,6 +482,39 @@
       return stats;
     }
 
+    /* ---------- Campanha ----------
+     * Um capítulo guarda o melhor de cada coisa, não o último: reler um texto
+     * já lido nunca pode piorar o que está registrado. */
+    function recordChapter(id, result) {
+      var o = result || {};
+      var c = campaign.chapters[id];
+      if (!c) c = campaign.chapters[id] = { done: false, plays: 0, bestWpm: 0, bestAcc: 0, first: 0, at: 0 };
+      c.plays += 1;
+      c.at = o.now || Date.now();
+      if (!c.first) c.first = c.at;
+      if (o.finished) c.done = true;
+      if ((o.wpm || 0) > c.bestWpm) c.bestWpm = o.wpm || 0;
+      if ((o.accuracy || 0) > c.bestAcc) c.bestAcc = o.accuracy || 0;
+      campaign.lastId = id;
+      saveCampaign();
+      return c;
+    }
+    function chapterState(id) { return campaign.chapters[id] || null; }
+    /* Mapa id → true, do jeito que o core/campaign espera para achar o
+     * próximo capítulo. */
+    function chaptersDone() {
+      var out = {};
+      Object.keys(campaign.chapters).forEach(function (id) {
+        if (campaign.chapters[id].done) out[id] = true;
+      });
+      return out;
+    }
+    function campaignCounts(total) {
+      var feitos = Object.keys(chaptersDone()).length;
+      return { total: total || 0, done: feitos, lastId: campaign.lastId || "" };
+    }
+    function clearCampaign() { campaign = { chapters: {} }; saveCampaign(); }
+
     /* ---------- Climas desbloqueados ---------- */
     /* O metajogo do documento é só isto: estatística e cosmético. Nada de
      * moeda, nada de loja — climas que abrem por palavras digitadas. */
@@ -501,6 +538,9 @@
       practiceQueue: practiceQueue, hardest: hardest, deckQueue: deckQueue,
       clearNotebook: clearNotebook, saveNotebook: saveNotebook,
       history: historyList, saveHistory: saveHistory,
+      recordChapter: recordChapter, chapterState: chapterState,
+      chaptersDone: chaptersDone, campaignCounts: campaignCounts,
+      clearCampaign: clearCampaign, saveCampaign: saveCampaign,
       visualUnlocked: visualUnlocked, nextVisualUnlock: nextVisualUnlock,
       touchDay: touchDay, streakFrozenToday: streakFrozenToday,
       goalProgress: goalProgress, dayKey: dayKey,

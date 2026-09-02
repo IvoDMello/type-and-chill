@@ -500,3 +500,67 @@ test("o localStorage de mentira dos testes se comporta como o de verdade", () =>
   m.clear();
   assert.strictEqual(m.getItem("y"), null);
 });
+
+/* ---------------- Campanha: o progresso por capítulo ---------------- */
+
+test("o capítulo guarda o melhor de cada coisa, não o último", () => {
+  const s = factory.create(factory.memoryStorage(), srs);
+  s.recordChapter("a1-01", { wpm: 45, accuracy: 92, finished: true, now: T0 });
+  s.recordChapter("a1-01", { wpm: 30, accuracy: 99, finished: true, now: T0 + 1000 });
+
+  const c = s.chapterState("a1-01");
+  assert.strictEqual(c.bestWpm, 45, "o PPM menor não substitui o melhor");
+  assert.strictEqual(c.bestAcc, 99, "mas a precisão melhor sobe");
+  assert.strictEqual(c.plays, 2);
+  assert.strictEqual(c.done, true);
+  assert.strictEqual(c.first, T0, "a primeira vez fica registrada");
+});
+
+test("capítulo abandonado no meio conta como jogado, não como concluído", () => {
+  const s = factory.create(factory.memoryStorage(), srs);
+  s.recordChapter("b1-01", { wpm: 20, accuracy: 90, now: T0 });
+  assert.strictEqual(s.chapterState("b1-01").done, false);
+  assert.deepStrictEqual(s.chaptersDone(), {});
+  assert.strictEqual(s.campaignCounts(5).done, 0);
+});
+
+test("a contagem da campanha sabe onde você parou", () => {
+  const s = factory.create(factory.memoryStorage(), srs);
+  s.recordChapter("a1-01", { wpm: 40, accuracy: 95, finished: true, now: T0 });
+  s.recordChapter("a2-01", { wpm: 42, accuracy: 96, finished: true, now: T0 + 1000 });
+  const c = s.campaignCounts(5);
+  assert.deepStrictEqual(c, { total: 5, done: 2, lastId: "a2-01" });
+  assert.strictEqual(s.chapterState("nunca-jogado"), null);
+});
+
+test("o progresso da campanha sobrevive ao recarregar, e some se apagado", () => {
+  const backing = factory.memoryStorage();
+  const s = factory.create(backing, srs);
+  s.recordChapter("a1-01", { wpm: 40, accuracy: 95, finished: true, now: T0 });
+  s.flush();
+
+  const outro = factory.create(backing, srs);
+  assert.strictEqual(outro.chapterState("a1-01").bestWpm, 40);
+  outro.clearCampaign();
+  assert.strictEqual(outro.chapterState("a1-01"), null);
+  assert.strictEqual(factory.create(backing, srs).campaignCounts(5).done, 0);
+});
+
+test("campanha gravada torta não impede o jogo de abrir", () => {
+  const backing = factory.memoryStorage();
+  backing.setItem("tc.campaign", '{"chapters":"isto devia ser objeto"}');
+  const s = factory.create(backing, srs);
+  assert.deepStrictEqual(s.chaptersDone(), {});
+  s.recordChapter("a1-01", { wpm: 10, accuracy: 90, finished: true, now: T0 });
+  assert.strictEqual(s.campaignCounts(1).done, 1);
+});
+
+test("recordChapter sem resultado nenhum ainda conta a tentativa", () => {
+  const s = factory.create(factory.memoryStorage(), srs);
+  s.recordChapter("a1-01");
+  const c = s.chapterState("a1-01");
+  assert.strictEqual(c.plays, 1);
+  assert.strictEqual(c.done, false);
+  assert.strictEqual(c.bestWpm, 0);
+  assert.deepStrictEqual(s.campaignCounts(), { total: 0, done: 0, lastId: "a1-01" });
+});
