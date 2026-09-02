@@ -1231,6 +1231,184 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     await page.close();
   });
 
+  await t.test("a campanha lista os capítulos e o leitor digita o texto inteiro", async () => {
+    const page = await novaPagina();
+    await page.click("#campaignBtn");
+    await page.waitForSelector("#campaignScreen:not([hidden])");
+
+    const titulos = await page.$$eval(".capitulo .capnome", ns => ns.map(n => n.textContent));
+    assert.ok(titulos.length >= 5, "a campanha nasce com um capítulo por nível");
+    assert.strictEqual(titulos[0], "Uma manhã devagar", "a lista começa no A1");
+    const niveis = await page.$$eval(".capitulo .caplvl", ns => ns.map(n => n.textContent));
+    assert.deepStrictEqual(niveis, ["A1", "A2", "B1", "B2", "C1"], "ordem de estudo, do A1 ao C1");
+    assert.match(await page.$eval("#capCount", n => n.textContent), /^0 de 5/);
+
+    await page.click("#capContinue");
+    await page.waitForSelector("#readerScreen:not([hidden])");
+    const texto = await page.$eval("#capText", n => n.textContent);
+    assert.ok(texto.length > 200, "o texto do capítulo tinha que estar na tela");
+    assert.strictEqual(await page.$eval("#capLevel", n => n.textContent), "A1");
+
+    // tecla errada é ignorada: o texto não anda e a precisão registra
+    await page.keyboard.press("z");
+    await sleep(120);
+    let hud = await page.evaluate(() => ({
+      feitos: document.querySelectorAll("#capText .feito").length,
+      acc: document.getElementById("capAcc").textContent,
+      pct: document.getElementById("capPct").textContent
+    }));
+    assert.strictEqual(hud.feitos, 0, "a letra errada não pode avançar o texto");
+    assert.strictEqual(hud.pct, "0%");
+
+    // a tradução do capítulo abre e fecha
+    await page.click("#capPtBtn");
+    await sleep(120);
+    assert.strictEqual(await page.$eval("#capPt", n => n.hidden), false);
+    assert.match(await page.$eval("#capPt", n => n.textContent), /sábado/);
+
+    // e agora o texto inteiro, com maiúsculas e pontuação
+    await page.keyboard.type(texto, { delay: 0 });
+    await page.waitForSelector("#capDone:not([hidden])", { timeout: 30000 });
+
+    const fim = await page.evaluate(() => ({
+      ppm: +document.getElementById("capFinalWpm").textContent,
+      acc: document.getElementById("capFinalAcc").textContent,
+      palavras: +document.getElementById("capFinalWords").textContent,
+      recap: document.querySelectorAll("#capFinalList .cw").length,
+      proximo: document.getElementById("capNext").textContent
+    }));
+    assert.ok(fim.ppm > 0, "o PPM do capítulo tinha que ser calculado");
+    assert.strictEqual(fim.palavras, 5, "as cinco palavras-alvo entram no caderno");
+    assert.strictEqual(fim.recap, 5, "e aparecem no resumo do fim");
+    assert.match(fim.proximo, /Próximo · A feira de sábado/);
+    assert.notStrictEqual(fim.acc, "100%", "o erro de propósito lá em cima tem que aparecer aqui");
+
+    // caderno e progresso gravados
+    await sleep(400);
+    const gravado = await page.evaluate(() => ({
+      caderno: JSON.parse(localStorage.getItem("tc.notebook") || "{}"),
+      campanha: JSON.parse(localStorage.getItem("tc.campaign") || "{}")
+    }));
+    assert.strictEqual(gravado.campanha.chapters["a1-01"].done, true);
+    assert.ok(gravado.campanha.chapters["a1-01"].bestWpm > 0);
+    ["kettle", "cozy", "routine", "neighbor", "quiet"].forEach(w => {
+      assert.ok(gravado.caderno[w], "faltou " + w + " no caderno");
+      assert.strictEqual(gravado.caderno[w].hits, 1);
+      assert.ok(gravado.caderno[w].srs.due > Date.now(), w + " não foi agendada");
+    });
+    assert.match(gravado.caderno.quiet.en, /making little or no noise/,
+      "a ficha declarada no capítulo é a que vale para uma palavra fora do banco");
+
+    // o próximo capítulo abre pelo botão do fim
+    await page.click("#capNext");
+    await page.waitForSelector("#readerScreen:not([hidden])");
+    assert.strictEqual(await page.$eval("#capTitle", n => n.textContent), "A feira de sábado");
+    assert.strictEqual(await page.$eval("#capPct", n => n.textContent), "0%", "capítulo novo começa do zero");
+
+    // Esc volta para a lista, e a lista já mostra o capítulo concluído
+    await page.keyboard.press("Escape");
+    await page.waitForSelector("#campaignScreen:not([hidden])");
+    assert.match(await page.$eval("#capCount", n => n.textContent), /^1 de 5/);
+    assert.strictEqual(
+      await page.$eval('.capitulo[data-chapter="a1-01"]', n => n.classList.contains("is-done")), true);
+    assert.match(await page.$eval("#capContinue", n => n.textContent), /^Continuar · A feira de sábado/);
+
+    // e o caminho para o tutorial sai daqui
+    await page.click("#capTutorial");
+    await page.waitForSelector("#tutorialScreen:not([hidden])");
+    await page.click("#tutDone");
+    await sleep(150);
+    await page.click("#capClose");
+    await sleep(150);
+    assert.strictEqual(await page.$eval("#campaignScreen", n => n.hasAttribute("hidden")), true);
+    await page.close();
+  });
+
+  await t.test("repetir um capítulo não piora o que já estava gravado", async () => {
+    const page = await novaPagina(() => {
+      localStorage.setItem("tc.version", "3");
+      localStorage.setItem("tc.campaign", JSON.stringify({
+        // recorde alto de propósito: o Puppeteer digita a 3000 ppm e passaria
+        // por cima de qualquer marca humana
+        chapters: { "a1-01": { done: true, plays: 1, bestWpm: 9999, bestAcc: 100, first: Date.now(), at: Date.now() } },
+        lastId: "a1-01"
+      }));
+    });
+
+    await page.keyboard.press("t");                 // atalho da campanha
+    await page.waitForSelector("#campaignScreen:not([hidden])");
+    await page.click('.capitulo[data-chapter="a1-01"] .capbtn');
+    await page.waitForSelector("#readerScreen:not([hidden])");
+
+    const texto = await page.$eval("#capText", n => n.textContent);
+    await page.keyboard.type(texto, { delay: 0 });
+    await page.waitForSelector("#capDone:not([hidden])", { timeout: 30000 });
+    await sleep(300);
+
+    const c = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("tc.campaign")).chapters["a1-01"]);
+    assert.strictEqual(c.bestWpm, 9999, "reler um texto não pode derrubar o melhor PPM");
+    assert.strictEqual(c.plays, 2);
+    assert.strictEqual(c.done, true);
+
+    // e o botão de repetir devolve o mesmo capítulo do zero
+    await page.click("#capRetry");
+    await sleep(200);
+    assert.strictEqual(await page.$eval("#capTitle", n => n.textContent), "Uma manhã devagar");
+    assert.strictEqual(await page.$eval("#capPct", n => n.textContent), "0%");
+    await page.click("#capBack");
+    await sleep(150);
+    assert.strictEqual(await page.$eval("#campaignScreen", n => n.hasAttribute("hidden")), false);
+    await page.close();
+  });
+
+  await t.test("o tutorial ensina repetição espaçada em cinco abas", async () => {
+    const page = await novaPagina();
+    await page.keyboard.press("e");                 // atalho de "Como estudar"
+    await page.waitForSelector("#tutorialScreen:not([hidden])");
+
+    const abas = await page.$$eval("#tutTabs .opttab", ns => ns.map(n => n.textContent));
+    assert.deepStrictEqual(abas, ["O problema", "A ideia", "Aqui dentro", "Na prática", "O que esperar"]);
+
+    // a curva do esquecimento é o argumento inteiro numa imagem
+    const grafico = await page.evaluate(() => ({
+      linhas: document.querySelectorAll("#tutBody .tutchart polyline").length,
+      semRevisar: document.querySelectorAll("#tutBody .tutchart .tutsem").length,
+      legenda: document.querySelector("#tutBody .tutlegenda") ? true : false
+    }));
+    assert.ok(grafico.linhas >= 2, "o gráfico precisa das duas curvas");
+    assert.strictEqual(grafico.semRevisar, 1);
+    assert.strictEqual(grafico.legenda, true);
+
+    for (const aba of ["ideia", "aqui", "pratica", "esperar"]) {
+      await page.click(`#tutTabs .opttab[data-tab="${aba}"]`);
+      await sleep(80);
+      const texto = await page.$eval("#tutBody", n => n.textContent);
+      assert.ok(texto.length > 120, "a aba " + aba + " veio vazia");
+    }
+    assert.match(await page.$eval("#tutBody", n => n.textContent), /caderno ainda está vazio/);
+
+    // "Aqui dentro" leva ao caderno
+    await page.click('#tutTabs .opttab[data-tab="aqui"]');
+    await sleep(100);
+    await page.click("#tutBody .tutacoes .btn");
+    await page.waitForSelector("#notebookScreen:not([hidden])");
+    assert.strictEqual(await page.$eval("#tutorialScreen", n => n.hasAttribute("hidden")), true);
+
+    // e o caderno tem o caminho de volta para o tutorial
+    await page.click("#nbTutorial");
+    await page.waitForSelector("#tutorialScreen:not([hidden])");
+    assert.strictEqual(await page.$eval("#notebookScreen", n => n.hasAttribute("hidden")), true);
+    assert.strictEqual(
+      await page.$eval('#tutTabs .opttab[data-tab="aqui"]', n => n.getAttribute("aria-selected")),
+      "true", "vindo do caderno, abre direto na aba que explica o caderno");
+
+    await page.keyboard.press("Escape");
+    await sleep(150);
+    assert.strictEqual(await page.$eval("#tutorialScreen", n => n.hasAttribute("hidden")), true);
+    await page.close();
+  });
+
   await t.test("nenhum erro de console em toda a bateria", () => {
     assert.deepStrictEqual(erros, [], "erros no navegador:\n" + erros.join("\n"));
   });
@@ -1249,6 +1427,8 @@ test("jogo completo no navegador", { skip, concurrency: 1 }, async (t) => {
     const LIMITES = {
       "js/game.js": 85,
       "js/options.js": 90,
+      "js/campaign.js": 85,
+      "js/tutorial.js": 85,
       "js/notebook.js": 90,
       "js/challengeui.js": 85,
       "js/storage.js": 85,

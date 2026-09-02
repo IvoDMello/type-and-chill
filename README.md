@@ -9,6 +9,10 @@ O que o separa de um joguinho de digitação qualquer:
   dinheiro, tempo… — separados em quatro famílias na hora de escolher.
 - **708 palavras com frase de exemplo** — todas. Definição ensina a reconhecer;
   frase ensina a usar.
+- **Campanha**: textos do A1 ao C1 digitados por inteiro, com palavras-alvo que entram
+  no caderno com agendamento.
+- **Um tutorial de repetição espaçada**, porque o método é o pulo do gato — e ninguém
+  usa o que não entende.
 - **Trilha ambiente generativa**, feita em código, sem direitos autorais.
 - **Cinco climas** que mudam paleta, fundo e harmonia da trilha ao mesmo tempo — dois
   abertos desde o começo, três que chegam por palavras digitadas.
@@ -45,10 +49,78 @@ O `npm` só é necessário para os **testes**. O jogo em si nunca depende dele.
 | **Prática** | A fila de revisão do caderno, na ordem do agendamento | Fixar o que vence hoje |
 | **Deck** | Só as palavras em que você tropeça, as mais falhadas primeiro | Encarar o que te pega |
 
+A **Campanha** é uma tela à parte, não um modo da partida: em vez de palavras caindo,
+um texto parado que você digita do começo ao fim. Está logo abaixo.
+
 Prática e Deck são os dois **modos de fila**: cada palavra aparece uma vez só e a partida
 termina quando a fila acaba. A diferença é a ordem — Prática segue o **agendamento** (o que
 você está prestes a esquecer), Deck segue o **tropeço** (o que escapou, errou ou demorou).
 O Deck sem tropeço nenhum cai na fila da revisão, em vez de abrir vazio.
+
+---
+
+## 📖 A campanha
+
+Um capítulo é um texto curto (40 a 160 palavras) que você digita inteiro. Cinco a dez
+**palavras-alvo** ficam sublinhadas no texto; ao completar cada uma, ela abre o cartão com
+definição, tradução e exemplo e **entra no caderno com agendamento** — o mesmo cano das
+palavras capturadas jogando. Nada cai, não há vidas nem cronômetro: o progresso é capítulo
+concluído, com o melhor PPM e a melhor precisão de cada um.
+
+Digitação na campanha: **pontuação é exigida, maiúscula não** (`i` vale por `I`), e a
+tecla errada é **ignorada** — o cursor espera a certa, como no resto do jogo. Errar não
+suja o texto; custa precisão no resumo do fim.
+
+### Escrever um capítulo
+
+Os textos ficam em [`js/campaign-texts.js`](js/campaign-texts.js), um objeto por capítulo:
+
+```js
+{
+  id: "a2-03",                          // nível + número, único
+  level: "A2",                          // A1 · A2 · B1 · B2 · C1
+  title: "A feira de sábado",           // curto, em português
+  intro: "Onde a fruta é boa...",       // uma linha em português
+  text: "The market opens early...",    // o texto em inglês, 40 a 160 palavras
+  pt: "O mercado abre cedo...",         // tradução (opcional, ajuda muito no A1/A2)
+  targets: ["crowded", "ripe"],         // 3 a 12 palavras-alvo
+  words: [                              // opcional: ficha das que não estão no banco
+    ["quiet","adj","making little or no noise","quieto","A1","The street is quiet."]
+  ]
+}
+```
+
+O `npm test` cobra cada capítulo novo e diz o que está torto:
+
+- o texto tem entre 40 e 160 palavras;
+- todo caractere é digitável — letras, números, espaço e `. , ; : ! ? ' " ( ) -`
+  (aspas curvas, travessão e reticências são convertidos sozinhos, então pode colar de
+  qualquer editor);
+- cada palavra-alvo **aparece no texto**, e flexão regular vale: `wake` na lista casa
+  com *wakes* ou *waking* no texto;
+- cada palavra-alvo **tem ficha**: já está no banco de 708 ou vem declarada no capítulo;
+- o `id` não repete.
+
+Foi assim que o primeiro capítulo escrito aqui foi pego: a lista dizia `neighbor` e o
+texto escrevia *neighbour*.
+
+---
+
+## 🧠 Como estudar (o tutorial)
+
+Tela própria, com cinco abas, aberta pela tecla **E**, pelo link da tela inicial, pelo
+caderno e pelo fim de um capítulo da campanha:
+
+| Aba | O que responde |
+|---|---|
+| **O problema** | A curva do esquecimento, desenhada em SVG: por que o que você estudou domingo já sumiu na quarta |
+| **A ideia** | Rever pouco antes de esquecer; por que os intervalos crescem (1 → 3 → 8 → 20 dias) |
+| **Aqui dentro** | O que o jogo faz sozinho (nota 5/4/3/0, dominada ✦) e o que você escolhe (Prática, Deck, Campanha, Caderno) |
+| **Na prática** | Dez minutos por dia batem duas horas no domingo; errar é o sinal, não o fracasso |
+| **O que esperar** | Os números, sem promessa mágica, e o seu estado de hoje |
+
+O caderno é um sistema de repetição espaçada inteiro; quem não sabe o que isso é vê só
+"uma lista de palavras". Esta tela existe para transformar o recurso em método.
 
 ---
 
@@ -166,6 +238,8 @@ Na tela inicial, onde não se digita nada, as letras podem ser atalho:
 | `A` | abre os ajustes da partida |
 | `O` | abre as opções |
 | `C` | abre o caderno |
+| `T` | abre a campanha |
+| `E` | abre "Como estudar" |
 
 O jogo **pausa sozinho** quando você troca de aba, e grava o caderno nesse momento.
 
@@ -191,24 +265,28 @@ Type & Chill/
 ├── js/
 │   ├── words.js          → o banco de palavras  ← mexa aqui pra adicionar palavras
 │   ├── examples.js       → a frase de exemplo de cada palavra
+│   ├── campaign-texts.js → os capítulos da campanha  ← e aqui pra escrever textos
 │   ├── core/             → lógica pura, sem DOM, coberta por testes
 │   │   ├── rng.js        → aleatoriedade determinística e o baralho da partida
 │   │   ├── srs.js        → repetição espaçada (SM-2) e fragilidade
 │   │   ├── scoring.js    → pontuação, ritmo, PPM e precisão
 │   │   ├── challenge.js  → códigos de desafio e de resultado
 │   │   ├── wordbank.js   → leitura e validação do banco
-│   │   └── progress.js   → marcos dos climas, curva de evolução e ofensiva
+│   │   ├── progress.js   → marcos dos climas, curva de evolução e ofensiva
+│   │   └── campaign.js   → leitura, marcação dos alvos e validação dos capítulos
 │   ├── storage.js        → preferências, caderno, ofensiva, histórico e placares
 │   ├── themes.js         → climas: paleta, fundo animado e clima sonoro
 │   ├── audio.js          → a trilha ambiente generativa + efeitos
 │   ├── speech.js         → pronúncia das palavras (Web Speech API)
 │   ├── notebook.js       → a tela do caderno, o gráfico, o CSV e o Anki
 │   ├── options.js        → o menu da engrenagem (áudio, gráficos, exibição, dados)
+│   ├── campaign.js       → a lista de capítulos e o leitor
+│   ├── tutorial.js       → a tela "Como estudar"
 │   ├── challengeui.js    → a tela de desafios
 │   └── game.js           → o laço do jogo e os modos
 ├── tests/
-│   ├── unit/             → 147 testes, sem navegador (node:test)
-│   ├── e2e/              → 26 testes no Chrome de verdade
+│   ├── unit/             → 174 testes, sem navegador (node:test)
+│   ├── e2e/              → 30 testes no Chrome de verdade
 │   │   └── coverage.js   → mede quanto do JS de interface os testes executam
 └── tools/serve.js        → servidor estático de desenvolvimento
 ```
@@ -223,9 +301,9 @@ viram `window.TCRng`, `window.TCSrs`… no navegador e `require()` no Node.
 
 ```bash
 npm install        # só na primeira vez (puppeteer-core, ~3 MB, sem baixar navegador)
-npm test           # 147 testes de unidade, ~1s
+npm test           # 174 testes de unidade, ~1s
 npm run coverage   # os mesmos testes, com piso de cobertura de 85%
-npm run test:e2e   # 26 testes de ponta a ponta num Chrome headless, ~150s
+npm run test:e2e   # 30 testes de ponta a ponta num Chrome headless, ~180s
 npm run test:all   # cobertura + ponta a ponta
 ```
 
@@ -237,17 +315,17 @@ num relatório só de Node:
 | Onde | Como | Piso |
 |---|---|---|
 | Lógica (`js/core/`, `js/storage.js`) | `npm run coverage` — o coletor do próprio Node | **85%** de linhas, ramos e funções |
-| Interface (`js/game.js`, `options.js`, `notebook.js`, `challengeui.js`, `themes.js`, `audio.js`) | `npm run test:e2e` — o V8 do Chrome, pelo mesmo caminho da aba *Coverage* do DevTools | **85%** de bytes executados |
+| Interface (`js/game.js`, `options.js`, `campaign.js`, `tutorial.js`, `notebook.js`, `challengeui.js`, `themes.js`, `audio.js`) | `npm run test:e2e` — o V8 do Chrome, pelo mesmo caminho da aba *Coverage* do DevTools | **85%** de bytes executados |
 
-Números da última medição: **99,8% de linhas · 88% de ramos · 99,3% de funções** no Node,
-e na interface **game 86% · options 97% · notebook 95% · desafios 89% · climas 85% ·
-áudio 90%**. O relatório da interface é gravado em `coverage/interface.json`, e a tabela
+Números da última medição: **99,8% de linhas · 88,6% de ramos · 99,5% de funções** no Node,
+e na interface **campanha 94% · tutorial 98% · options 96% · notebook 95% · áudio 90% ·
+desafios 89% · climas 86% · game 86%**. O relatório da interface é gravado em `coverage/interface.json`, e a tabela
 aparece no fim do `npm run test:e2e`.
 
 Dois arquivos têm piso menor e é de propósito: `speech.js` (75%) depende de vozes
 instaladas no sistema e `themes.js` (82%) desenha partículas quadro a quadro — exigir
-deles o mesmo que de um arquivo de lógica seria fingir cobertura. `words.js` e
-`examples.js` ficam fora da conta: são dados, não código.
+deles o mesmo que de um arquivo de lógica seria fingir cobertura. `words.js`, `examples.js` e
+`campaign-texts.js` ficam fora da conta: são dados, não código.
 
 Os testes de unidade cobrem o banco de palavras (inclusive **100% de cobertura das frases
 de exemplo**, e se cada frase usa mesmo a própria palavra), o gerador determinístico, o
@@ -438,7 +516,9 @@ sem trocar de tecnologia, sem instalador e sem loja no meio — veja a nota abai
       aparelho de verdade — o que falta antes de encarar a Play Store.
 - [ ] Empacotar com [Capacitor](https://capacitorjs.com) pra virar APK/AAB e ir pra Play Store.
       Como o projeto é HTML/CSS/JS puro, isso não exige reescrever nada.
-- [ ] Campanha: textos progressivos do A1 ao C1, digitados na íntegra, com palavras-alvo.
+- [x] Campanha: o motor, o leitor, a validação dos capítulos e cinco textos de partida.
+- [ ] Escrever os capítulos de verdade — a campanha nasce com um por nível, e é conteúdo
+      que só o autor faz.
 - [ ] Placar online opcional, se um dia valer a pena ter servidor.
 
 ### Sobre distribuir e cobrar

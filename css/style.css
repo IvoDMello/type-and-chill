@@ -884,3 +884,148 @@ body.no-motion .caret { animation: none }
   .optseg { justify-content: flex-start }
   .optslider input[type="range"] { width: 100% }
 }
+
+/* ---------- Campanha: a lista de capítulos ---------- */
+.capcount {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--faint); margin: 14px 0 16px;
+}
+.caplist { list-style: none; margin: 22px 0 24px; padding: 0; display: flex; flex-direction: column; gap: 10px }
+.capitulo { margin: 0 }
+.capbtn {
+  width: 100%; cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; gap: 5px;
+  background: var(--field); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; color: var(--text);
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.capbtn:hover { border-color: var(--border-hi); transform: translateX(2px) }
+.capbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.captopo { display: flex; align-items: baseline; gap: 10px }
+.caplvl {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .14em;
+  color: var(--btn-fg); background: var(--accent);
+  padding: .2em .5em; border-radius: 4px; flex: none;
+}
+.capnome { font-family: var(--serif); font-size: 1.06rem; font-weight: 600 }
+.capintro { font-family: var(--serif); font-size: .9rem; color: var(--muted); margin: 0 }
+.capmeta {
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.capitulo.is-done .capbtn { border-color: var(--border-hi) }
+.capitulo.is-done .capmeta { color: var(--accent) }
+
+/* ---------- Campanha: o leitor ---------- */
+.card-reader { width: min(760px, 96vw); text-align: left }
+.readerhead { display: flex; align-items: center; gap: 12px; margin-bottom: 6px }
+.readertitle {
+  margin: 0; flex: 1; font-family: var(--serif); font-weight: 600;
+  font-size: clamp(1.2rem, 3vw, 1.6rem);
+}
+.readerhud { margin: 16px 0 18px }
+.readerstats {
+  display: flex; flex-wrap: wrap; gap: 16px; margin-top: 9px;
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--faint);
+}
+.readerstats b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums }
+
+/* O texto do capítulo. Monoespaçado porque cada caractere é um alvo: com
+   fonte proporcional, o cursor pularia de largura a cada letra. */
+.captext {
+  white-space: pre-wrap;
+  font-family: var(--mono); font-size: clamp(1rem, 2.2vw, 1.18rem); line-height: 2;
+  color: var(--faint); max-height: 42vh; overflow-y: auto; padding: 4px 2px;
+  word-break: break-word;
+}
+.captext .ch { transition: color .12s ease }
+.captext .feito { color: var(--text) }
+.captext .alvo { border-bottom: 2px solid var(--border-hi); padding-bottom: 1px }
+.captext .feito.alvo { color: var(--accent); border-bottom-color: var(--accent) }
+.captext .agora {
+  background: var(--word-bg-on); color: var(--letter-next);
+  border-radius: 3px; box-shadow: 0 0 0 1px var(--word-border-on);
+}
+@keyframes chErro { 0%,100% { transform: none } 50% { transform: translateY(2px) } }
+.captext .errou { animation: chErro .2s; color: var(--hot) }
+.cappt {
+  font-family: var(--serif); font-style: italic; font-size: .92rem;
+  color: var(--muted); border-left: 2px solid var(--border);
+  padding-left: 12px; margin: 16px 0 0;
+}
+.cappt[hidden] { display: none }
+.readerfoot { margin-top: 14px; display: flex; gap: 16px }
+
+.capcard {
+  margin-top: 18px; padding: 14px 16px; text-align: center;
+  background: var(--field); border: 1px solid var(--border-hi); border-radius: 14px;
+}
+.capcard[hidden] { display: none }
+.capcard .dw { font-family: var(--serif); font-style: italic; font-size: 1.5rem; font-weight: 500 }
+.capcard .dp {
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--gold); margin: 5px 0 7px;
+}
+.capcard .dd { font-family: var(--serif); font-size: 1rem; color: var(--text) }
+.capcard .dt { font-family: var(--serif); font-style: italic; color: var(--muted); margin-top: 5px }
+.capcard .dx { font-family: var(--serif); color: var(--faint); margin-top: 7px; font-size: .9rem }
+.capcard .dt[hidden], .capcard .dx[hidden] { display: none }
+
+.capdone { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 20px; text-align: center }
+.capdone[hidden] { display: none }
+.capdone .recap { max-height: 30vh }
+
+#readerInput {
+  position: fixed; opacity: 0; pointer-events: none;
+  width: 1px; height: 1px; left: -100px; top: 0;
+}
+
+/* ---------- Como estudar: o tutorial ---------- */
+.tutbody { max-height: 58vh; overflow-y: auto; padding-right: 4px }
+.tuth {
+  font-family: var(--serif); font-weight: 600; font-size: 1.15rem;
+  margin: 18px 0 8px; color: var(--text);
+}
+.tutbody .tuth:first-child { margin-top: 12px }
+.tutp { font-family: var(--serif); font-size: .98rem; line-height: 1.6; color: var(--muted); margin: 10px 0 }
+.tutlist { margin: 12px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 9px }
+.tutlist li { font-family: var(--serif); font-size: .95rem; line-height: 1.5; color: var(--muted) }
+.tutlist li::marker { color: var(--accent) }
+.tutdestaque {
+  font-family: var(--mono); font-size: .82rem; letter-spacing: .06em;
+  text-align: center; color: var(--text); background: var(--field);
+  border: 1px solid var(--border-hi); border-radius: 12px;
+  padding: 14px 12px; margin: 16px 0;
+}
+.tutestado {
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent);
+  border-top: 1px solid var(--border); padding-top: 14px; margin-top: 18px;
+}
+.tutacoes { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 6px }
+
+.tutchart {
+  margin: 16px 0; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--field); padding: 12px 10px 6px;
+}
+.tutchart svg { display: block; width: 100%; height: auto }
+.tutchart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke }
+.tutchart .tutsem { stroke: var(--faint); stroke-dasharray: 4 4 }
+.tutchart .tutcom { stroke: var(--accent) }
+.tutchart .tutmarca { stroke: var(--border); stroke-width: 1 }
+.tutchart .tuteixo {
+  font-family: var(--mono); font-size: 11px; fill: var(--faint);
+}
+.tutlegenda {
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--faint); margin: 8px 2px 2px;
+}
+.tutlegenda .k { display: inline-block; width: 14px; height: 2px; margin: 0 5px 3px 0; vertical-align: middle }
+.tutlegenda .ksem { background: var(--faint) }
+.tutlegenda .kcom { background: var(--accent) }
+
+@media (max-width: 560px) {
+  .captext { font-size: 1rem; line-height: 1.9; max-height: 38vh }
+  .readerstats { gap: 12px }
+}
