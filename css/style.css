@@ -266,61 +266,26 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
 .homestats .stat span { text-align: center }
 
 /* ---------- Tela inicial ---------- */
-/* Sem moldura de cartão: a coluna sozinha sobre o fundo. A hierarquia vem do
-   tamanho, não de caixas — e a ação primária fica antes de qualquer ajuste. */
+/* Sem moldura de cartão e sem coluna centrada: a tela inteira, do topo ao
+   rodapé, dividida por fios de 1px. A hierarquia vem do tamanho do tipo e do
+   espaço entre as coisas — não de caixas.
+   Nenhuma cor aqui é literal: tudo sai das variáveis do clima, então os cinco
+   climas continuam trocando a interface inteira. */
+.overlay-home { padding: 0; place-items: stretch }
+
 .card-home {
-  width: min(1060px, 100%); max-height: 100vh; max-height: 100dvh; overflow-y: auto;
+  width: min(1560px, 100%); margin: 0 auto;
+  max-height: none; overflow-y: auto;
   background: none; border: 0; border-radius: 0; box-shadow: none;
-  text-align: left; padding: clamp(24px, 5vh, 48px) clamp(20px, 5vw, 28px);
-  display: block;
+  text-align: left;
+  padding: 0 clamp(20px, 5.2vw, 104px) clamp(22px, 4vh, 56px);
+  display: flex; flex-direction: column;
+  min-height: 100vh; min-height: 100dvh;
 }
-.card-home > * + * { margin-top: 22px }
 
-.homebar { display: flex; align-items: center; justify-content: space-between; gap: 16px }
-.homebar[hidden] { display: none }
-.wordmark[hidden] { display: none }
-.homebar .homebarend { margin-left: auto }
-.wordmark { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; letter-spacing: .01em }
-.wordmark .dot { color: var(--accent) }
-.streakline {
-  font-family: var(--mono); font-size: .64rem; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--muted); white-space: nowrap;
-}
-.streakline b { color: var(--accent); font-weight: 700 }
-.streakline[hidden] { display: none }
-
-.card-home .kicker { margin-bottom: 14px }
-#homeNew h2 { font-size: clamp(2.5rem, 7vw, 3.6rem); margin: 0 0 16px; line-height: 1.02 }
-.card-home .lead { margin: 0; max-width: 42ch }
-
-#homeNew { padding-top: 18px }
-#homeVet { padding-top: 10px }
-.vetline { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px }
-.bignum {
-  font-family: var(--mono); font-weight: 700; line-height: .88;
-  font-size: clamp(2.9rem, 8vw, 4rem); font-variant-numeric: tabular-nums;
-}
-.card-home .vethead {
-  margin: 0; font-family: var(--serif); font-weight: 600; line-height: 1.12;
-  font-size: clamp(1.4rem, 3.4vw, 1.95rem); letter-spacing: -.01em;
-}
-.card-home .goal { margin: 0; max-width: none }
-.card-home .goaltext { text-align: left }
-.card-home .warn { margin: 0; max-width: none; text-align: left }
-
-/* Ação primária: uma barra larga, com a tecla que a dispara escrita nela. */
-.btn.cta {
-  width: 100%; display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; text-align: left; padding: 20px 24px; font-size: .92rem; border-radius: 18px;
-}
-.ctakey { font-size: .66rem; letter-spacing: .16em; opacity: .68 }
-.ctameta {
-  display: flex; justify-content: space-between; gap: 14px; margin-top: 10px;
-  font-family: var(--mono); font-size: .62rem; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--faint);
-}
-.ctameta span:last-child { text-align: right }
-
+/* ---------- Botão de texto ---------- */
+/* Vive na barra do topo, mas também em toda tela que tem um "Fechar · Esc":
+   é o botão sem caixa do jogo inteiro. */
 .linkbtn {
   background: none; border: 0; padding: 0; cursor: pointer;
   font-family: var(--mono); font-size: .66rem; letter-spacing: .14em;
@@ -328,34 +293,267 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
 }
 .linkbtn:hover { color: var(--text) }
 .linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px }
-.altstart {
-  display: inline-block; margin-top: 14px;
-  border-bottom: 1px solid var(--border-hi); padding-bottom: 3px;
-}
-.altstart[hidden] { display: none }
 
-/* Toda a configuração cabe numa linha; o painel só abre quando alguém pede. */
-.setupline {
-  width: 100%; display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; text-align: left; cursor: pointer;
-  padding: 14px 16px; border-radius: 14px;
-  border: 1px solid var(--border); background: var(--field); color: var(--muted);
-  transition: border-color .18s, color .18s;
+/* ---------- Barra do topo ---------- */
+/* Marca, navegação e estado do jogador numa linha só. Em tela estreita a
+   navegação quebra para a linha de baixo, dentro da própria barra. */
+.homebar {
+  flex: none; display: flex; align-items: center; flex-wrap: wrap;
+  gap: 12px clamp(20px, 4vw, 72px);
+  min-height: clamp(68px, 9vh, 104px); padding: 14px 0;
+  border-bottom: 1px solid var(--border);
 }
-.setupline:hover { border-color: var(--border-hi); color: var(--text) }
-.setupline:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
-.setupsum { font-family: var(--mono); font-size: .76rem; line-height: 1.5; letter-spacing: .02em }
-.setupkey {
-  font-family: var(--mono); font-size: .6rem; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--accent); white-space: nowrap;
+.homebar[hidden] { display: none }
+.wordmark {
+  font-family: var(--serif); font-weight: 500; font-size: 1.3rem;
+  letter-spacing: -.01em; white-space: nowrap;
 }
+.wordmark[hidden] { display: none }
+.wordmark .dot { color: var(--accent); font-style: italic }
 
 .homelinks {
-  display: flex; flex-wrap: wrap; gap: 22px;
-  margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px clamp(16px, 2.4vw, 38px);
+  flex: 1 1 auto; min-width: 0;
+  margin: 0; padding: 0; border: 0;
 }
-#howBox { margin-top: 16px }
-#homeKeys { margin-top: 26px; text-align: left }
+/* Um fio que cresce sob o item, em vez da seta que empurrava o texto: numa
+   barra horizontal qualquer deslocamento mexe com os vizinhos. */
+.homelinks .linkbtn { position: relative; padding: 5px 0 }
+.homelinks .linkbtn::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: var(--accent); transform: scaleX(0); transform-origin: left center;
+  transition: transform .4s cubic-bezier(.2,.7,.2,1);
+}
+.homelinks .linkbtn:hover, .homelinks .linkbtn:focus-visible { color: var(--text) }
+.homelinks .linkbtn:hover::before,
+.homelinks .linkbtn:focus-visible::before { transform: scaleX(1) }
+
+.homebarend { display: flex; align-items: center; gap: 16px; margin-left: auto }
+.streakline {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: var(--mono); font-size: .64rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+.streakline[hidden] { display: none }
+.streakline b { color: var(--accent); font-weight: 700 }
+.streakline .ember {
+  width: 5px; height: 5px; border-radius: 50%; flex: none;
+  background: var(--accent); box-shadow: 0 0 12px 2px var(--word-glow);
+  animation: emberPulse 4.5s ease-in-out infinite;
+}
+@keyframes emberPulse { 0%, 100% { opacity: .35 } 50% { opacity: 1 } }
+.streakline.frozen b { color: var(--accent-2) }
+.streakline.frozen .ember { background: var(--accent-2) }
+
+/* ---------- As duas colunas ---------- */
+/* A decisão de agora à esquerda, o placar do jogador à direita. */
+.homegrid {
+  flex: 1; display: grid; align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: clamp(40px, 7vw, 132px); row-gap: clamp(40px, 7vh, 72px);
+  padding: clamp(38px, 7vh, 96px) 0 0;
+}
+@media (min-width: 1040px) {
+  .homegrid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(250px, 0.68fr);
+    row-gap: 0; padding-top: clamp(52px, 10vh, 148px);
+  }
+}
+@media (min-width: 1400px) {
+  .homegrid { grid-template-columns: minmax(0, 1.55fr) minmax(272px, 0.62fr) }
+}
+/* Sem placar (jogador novo), a segunda coluna seria uma faixa morta à direita.
+   Onde :has existe a grade fecha; onde não existe, sobra o espaço de antes. */
+.homegrid:has(> .homerail[hidden]) { grid-template-columns: minmax(0, 1fr) }
+.homegrid:has(> .homerail[hidden]) .homemain { max-width: 760px }
+.homemain { min-width: 0 }
+
+/* ---------- O assunto da tela ---------- */
+.card-home .kicker {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 0 clamp(18px, 3vh, 38px);
+  font-size: .64rem; letter-spacing: .34em; color: var(--accent);
+}
+.card-home .kicker::before {
+  content: ""; width: 26px; height: 1px; flex: none;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+
+#homeNew h2 {
+  font-family: var(--serif); font-weight: 500;
+  font-size: clamp(2.8rem, 8vw, 5.2rem); line-height: .96;
+  letter-spacing: -.03em; margin: 0 0 20px;
+}
+.card-home .lead { margin: 0; max-width: 46ch; font-size: 1.06rem }
+
+/* Número e frase são um título só, em duas linhas. */
+.card-home .vethead {
+  margin: 0; font-family: var(--serif); font-weight: 400;
+  color: var(--text); letter-spacing: -.02em;
+}
+.card-home .bignum {
+  display: block; font-family: var(--serif); font-weight: 500;
+  font-size: clamp(4.6rem, 11.4vw, 11.2rem); line-height: .8;
+  letter-spacing: -.045em; color: var(--text);
+  font-variant-numeric: lining-nums tabular-nums;
+  text-shadow: 0 0 70px var(--word-glow);
+}
+.vetphrase {
+  display: block; margin-top: clamp(6px, 1.4vh, 18px);
+  font-size: clamp(1.55rem, 3.5vw, 3.35rem); line-height: 1.06;
+  font-weight: 400; color: var(--muted);
+}
+.vetphrase em { font-style: italic; color: var(--faint) }
+
+.card-home .warn { margin: 22px 0 0; max-width: 46ch; text-align: left }
+
+/* ---------- O que a partida é, antes de começá-la ---------- */
+.ctameta {
+  display: flex; align-items: baseline; gap: clamp(12px, 2vw, 22px);
+  margin: clamp(18px, 3vh, 34px) 0 0;
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--faint);
+}
+.ctameta .rule { flex: 1; min-width: 16px; height: 1px; background: var(--border) }
+.ctameta span { white-space: nowrap }
+
+/* ---------- A pastilha de começar ---------- */
+/* Uma pastilha, não uma barra: o disco de play é o que o olho encontra
+   primeiro, e a tecla que dispara vem escrita depois de um fio. */
+.btn.cta {
+  align-self: flex-start; width: auto;
+  display: inline-flex; align-items: center; gap: clamp(14px, 2vw, 22px);
+  margin: clamp(28px, 6vh, 74px) 0 0;
+  padding: 14px 30px 14px 14px;
+  border: 1px solid var(--word-border-on); border-radius: 999px;
+  background: var(--word-bg-on); color: var(--text);
+  box-shadow: none; font-size: .78rem; letter-spacing: .24em;
+  transition: background .5s, border-color .5s, box-shadow .5s, color .5s, transform .15s;
+}
+.btn.cta .ctaplay {
+  width: 42px; height: 42px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--btn-a), var(--btn-b));
+  color: var(--btn-fg); box-shadow: 0 10px 28px -10px var(--btn-glow);
+  transition: transform .45s cubic-bezier(.2,.9,.3,1.5);
+}
+.btn.cta .ctaplay svg { display: block; width: 12px; height: 14px }
+.btn.cta .ctatext { min-width: 0; text-align: left }
+.btn.cta .ctakey {
+  font-size: .6rem; letter-spacing: .2em; color: var(--faint);
+  padding-left: 12px; border-left: 1px solid var(--border); flex: none;
+}
+.btn.cta:hover {
+  transform: none; border-color: var(--accent);
+  box-shadow: 0 18px 60px -22px var(--btn-glow);
+}
+.btn.cta:hover .ctaplay { transform: scale(1.07) }
+.btn.cta[disabled] { box-shadow: none }
+.btn.cta[disabled]:hover .ctaplay { transform: none }
+
+/* ---------- A partida que não é a de agora, e os ajustes ---------- */
+.setuprow {
+  display: flex; align-items: center; gap: 18px;
+  margin-top: clamp(36px, 8vh, 96px);
+}
+.setuprow .rule { flex: 1; min-width: 16px; height: 1px; background: var(--border) }
+.altstart {
+  border: 0; padding: 0; white-space: nowrap;
+  font-size: .62rem; letter-spacing: .32em; color: var(--faint);
+}
+.altstart[hidden] { display: none }
+.altstart:hover { color: var(--text) }
+.setupopen {
+  white-space: nowrap; color: var(--accent);
+  font-size: .62rem; letter-spacing: .24em;
+  transition: color .5s ease, letter-spacing .5s ease;
+}
+.setupopen:hover, .setupopen:focus-visible { color: var(--gold); letter-spacing: .3em }
+
+/* Três colunas com nome no lugar de uma linha corrida de texto: agora dá para
+   ler só o que interessa em vez de varrer a frase inteira. */
+.setupfields {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(18px, 3vw, 48px); row-gap: 22px;
+  margin: clamp(16px, 2.6vh, 28px) 0 0;
+}
+.setupfield { min-width: 0; border-top: 1px solid var(--border); padding-top: 12px }
+.setupfield dt {
+  font-family: var(--mono); font-size: .56rem; letter-spacing: .3em;
+  text-transform: uppercase; color: var(--faint);
+}
+.setupfield dd {
+  margin: 8px 0 0; font-family: var(--serif); font-size: 1.3rem;
+  font-weight: 400; line-height: 1.25; color: var(--text);
+}
+@media (max-width: 1039px) { .setupfields { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 620px) { .setupfields { grid-template-columns: minmax(0, 1fr) } }
+
+/* ---------- Placar do jogador ---------- */
+/* Sem painel e sem borda: só rótulo à esquerda, número grande à direita e um
+   fio separando as linhas. O que está em zero fica apagado — é uma meta, não
+   uma conquista. */
+.homerail { min-width: 0; padding-top: clamp(4px, 2vh, 26px) }
+.homerail[hidden] { display: none }
+@media (max-width: 1039px) {
+  .homerail { order: 2; max-width: 520px }
+}
+.railtitle {
+  display: flex; align-items: center; gap: 14px; margin: 0 0 20px;
+  font-family: var(--mono); font-size: .58rem; letter-spacing: .34em;
+  text-transform: uppercase; color: var(--faint);
+}
+.railtitle .rule { flex: 1; height: 1px; background: var(--border) }
+.railstats { list-style: none; margin: 0; padding: 0 }
+.railrow {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  padding: 18px 0; border-top: 1px solid var(--border);
+}
+.raillabel {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .26em;
+  text-transform: uppercase; color: var(--faint);
+}
+.railval {
+  font-family: var(--serif); font-weight: 400; font-size: 2.15rem; line-height: 1;
+  letter-spacing: -.02em; color: var(--text);
+  font-variant-numeric: lining-nums tabular-nums;
+  transition: color .4s ease;
+}
+.railrow.is-zero .railval { color: var(--faint); opacity: .55 }
+
+.homerail .goal {
+  max-width: none; margin: clamp(22px, 5vh, 54px) 0 0;
+  border-top: 1px solid var(--border); padding-top: 18px;
+}
+.goalhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 }
+.goalcount {
+  font-family: var(--mono); font-size: .6rem; letter-spacing: .16em;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.homerail .bartrack {
+  margin-top: 14px; height: 2px; border: 0; border-radius: 0;
+  background: var(--border);
+}
+.homerail .bardone { box-shadow: 0 0 18px 1px var(--word-glow) }
+.homerail .goaltext {
+  margin-top: 14px; font-size: .58rem; letter-spacing: .18em; line-height: 1.7;
+}
+
+/* ---------- Rodapé ---------- */
+#howBox { flex: none; margin-top: clamp(22px, 4vh, 40px) }
+.homefoot {
+  flex: none; margin-top: clamp(18px, 3vh, 34px); padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.homefoot .hint { margin: 0; text-align: left }
+
+/* Texto que só o leitor de tela precisa: o resumo dos ajustes em uma linha,
+   que virou a descrição do botão "Ajustar". */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; white-space: nowrap; border: 0; clip-path: inset(50%);
+}
 
 /* ---------- Painel de ajustes ---------- */
 .card-setup { width: min(660px, 96vw); text-align: left }
@@ -671,15 +869,24 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
   #defcard .dd { font-size: 1rem }
   .word { font-size: clamp(1.05rem, 5.4vw, 1.5rem); padding: .38em .66em }
 
-  .card-home { padding: 26px 18px 34px }
-  .card-home > * + * { margin-top: 18px }
+  .card-home { padding: 0 18px 28px }
+  .homebar { min-height: 0; padding: 14px 0; gap: 12px 20px }
+  .wordmark { font-size: 1.15rem }
+  .homelinks { gap: 10px 18px; order: 3; flex-basis: 100% }
+  .homebarend { gap: 12px }
+  .homegrid { padding-top: 30px; row-gap: 34px }
   #homeNew h2 { font-size: clamp(2.1rem, 10vw, 2.7rem) }
   .card-home .lead { font-size: .98rem }
-  .btn.cta { padding: 17px 18px; font-size: .84rem }
-  .ctameta { flex-direction: column; gap: 5px }
-  .ctameta span:last-child { text-align: left }
-  .setupline { flex-direction: column; align-items: flex-start; gap: 8px }
-  .homelinks { gap: 16px 20px; margin-top: 22px }
+  .card-home .bignum { font-size: clamp(4rem, 22vw, 6rem) }
+  .vetphrase { font-size: clamp(1.4rem, 7vw, 1.9rem) }
+  .ctameta { flex-direction: column; align-items: flex-start; gap: 5px; font-size: .62rem }
+  .ctameta .rule { display: none }
+  .ctameta span { white-space: normal }
+  .btn.cta { width: 100%; padding: 12px 22px 12px 12px; gap: 14px; font-size: .72rem }
+  .btn.cta .ctaplay { width: 38px; height: 38px }
+  .btn.cta .ctakey { margin-left: auto }
+  .setuprow { margin-top: 34px; flex-wrap: wrap; gap: 12px }
+  .railval { font-size: 1.85rem }
   .how.howgrid { grid-template-columns: 1fr; padding: 15px }
   #homeKeys { font-size: .58rem; letter-spacing: .1em }
 
@@ -697,12 +904,17 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
 
 /* Celular deitado: sobra largura e falta altura. */
 @media (max-height: 520px) and (orientation: landscape) {
-  .card-home { padding: 16px 20px }
-  .card-home > * + * { margin-top: 12px }
+  .card-home { padding: 0 20px 14px; min-height: 0 }
+  .homebar { min-height: 0; padding: 10px 0 }
+  .homegrid { padding-top: 18px; row-gap: 20px }
+  .card-home .bignum { font-size: clamp(3rem, 12vh, 4.4rem) }
+  .vetphrase { font-size: 1.4rem }
+  .card-home .kicker { margin-bottom: 10px }
   #homeNew h2 { font-size: 2rem; margin-bottom: 8px }
-  #homeNew, #homeVet { padding-top: 0 }
-  .btn.cta { padding: 14px 18px }
-  #howBox, #homeKeys { display: none }
+  .btn.cta { margin-top: 20px; padding: 10px 22px 10px 10px }
+  .btn.cta .ctaplay { width: 34px; height: 34px }
+  .setuprow { margin-top: 22px }
+  #howBox, .homefoot { display: none }
   #defcard { bottom: 12px }
   #defcard .dw { font-size: 1.5rem }
 }
@@ -713,7 +925,7 @@ body.is-playing #hud .stats, body.is-playing .toolbtns { pointer-events: auto }
   .chip { padding: 11px 16px; font-size: .82rem }
   .linkbtn { padding: 8px 0; font-size: .7rem }
   .minibtn { padding: 4px 0 }
-  .setupline { padding: 16px }
+  .homelinks .linkbtn { padding: 8px 0 }
 }
 body.is-touch .toolhint { display: block }
 
@@ -788,13 +1000,13 @@ body.no-motion .caret { animation: none }
 
 .gearbtn {
   cursor: pointer; background: none; border: 1px solid var(--border);
-  color: var(--muted); border-radius: 50%; width: 30px; height: 30px;
-  font-size: .9rem; line-height: 1; padding: 0; flex: none;
-  transition: color .18s, border-color .18s, transform .3s ease;
+  color: var(--muted); border-radius: 50%; width: 34px; height: 34px;
+  padding: 0; flex: none; display: grid; place-items: center;
+  transition: color .5s ease, border-color .5s ease, transform .55s cubic-bezier(.2,.7,.2,1);
 }
-.gearbtn:hover { color: var(--text); border-color: var(--border-hi); transform: rotate(60deg) }
+.gearbtn svg { display: block; width: 14px; height: 14px }
+.gearbtn:hover { color: var(--accent); border-color: var(--border-hi); transform: rotate(45deg) }
 .gearbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.homebarend { display: flex; align-items: center; gap: 12px }
 
 .card-options { width: min(660px, 96vw); text-align: left }
 .opttabs {
@@ -1038,85 +1250,15 @@ body.no-motion .caret { animation: none }
    carregar, a partida é a mesma. As cores continuam vindo só de themes.css.
    ===================================================================== */
 
-/* ---------- A tela inicial em duas colunas ---------- */
-/* A coluna única no meio de um monitor grande era uma tira de texto num mar
-   de fundo. Agora a decisão de agora fica à esquerda, larga, e o placar do
-   jogador ocupa a direita — que antes era só vazio. */
-.homegrid {
-  display: grid; gap: clamp(20px, 3vw, 42px);
-  grid-template-columns: minmax(0, 1fr); align-items: start;
-}
-@media (min-width: 900px) {
-  .homegrid { grid-template-columns: minmax(0, 1.45fr) minmax(240px, 0.8fr) }
-}
-.homemain { min-width: 0 }
-.homemain > * + * { margin-top: 20px }
-.card-home .homegrid + * { margin-top: clamp(24px, 3vh, 34px) }
-
-/* Painel do placar. Os cantos marcados são o que separa "caixa de texto" de
-   "peça de HUD" — dois traços, e a mesma caixa vira instrumento. */
-.homerail {
-  position: relative; padding: 18px 18px 20px;
-  border: 1px solid var(--border); border-radius: 16px;
-  background: var(--panel);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-}
-.homerail[hidden] { display: none }
-.homerail::before, .homerail::after {
-  content: ""; position: absolute; width: 16px; height: 16px;
-  border: 1px solid var(--accent); opacity: .5; pointer-events: none;
-}
-.homerail::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-radius: 16px 0 0 0 }
-.homerail::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-radius: 0 0 16px 0 }
-
-.railtitle {
-  margin: 0 0 12px; font-family: var(--mono); font-size: .56rem;
-  letter-spacing: .26em; text-transform: uppercase; color: var(--faint);
-}
-.railstats { list-style: none; margin: 0; padding: 0 }
-.railstats li {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  padding: 10px 0; border-bottom: 1px dashed var(--border);
-}
-.railstats li:last-child { border-bottom: 0 }
-.raillabel {
-  font-family: var(--mono); font-size: .6rem; letter-spacing: .16em;
-  text-transform: uppercase; color: var(--faint);
-}
-.railval {
-  font-family: var(--mono); font-weight: 700; font-size: 1.2rem; line-height: 1;
-  color: var(--accent); font-variant-numeric: tabular-nums;
-}
-.homerail .goal { max-width: none; margin: 18px 0 0 }
-.homerail .goal .railtitle { margin-bottom: 9px }
-.homerail .goaltext { margin-top: 9px; font-size: .58rem; letter-spacing: .12em }
-
-/* ---------- Hierarquia do texto na inicial ---------- */
-/* O número grande é o assunto da tela: ganha brilho, e a frase ao lado divide
-   a linha de base com ele para os dois lerem como uma coisa só. */
-.vetline { gap: 12px; margin-bottom: 20px }
-.card-home .bignum {
-  color: var(--text); text-shadow: 0 0 34px var(--word-glow);
-  letter-spacing: -.02em;
-}
-
-/* A linha sob o botão dizia duas coisas importantes em cinza quase invisível.
-   Continua discreta, mas agora dá para ler — e o lado esquerdo, que é o modo
-   escolhido, ganha um ponto de cor. */
-.ctameta {
-  margin-top: 12px; font-size: .64rem; letter-spacing: .14em; color: var(--muted);
-  align-items: baseline;
-}
-.ctameta span:first-child { display: inline-flex; align-items: baseline; gap: 8px }
-.ctameta span:first-child::before {
-  content: ""; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 8px var(--word-glow); flex: none;
-}
-.ctameta span:last-child { color: var(--faint) }
-
 /* ---------- Atalhos como teclas ---------- */
 .keycaps { display: flex; flex-wrap: wrap; gap: 9px 18px; align-items: center }
-.keycaps > span { display: inline-flex; align-items: center; gap: 7px }
+/* O realce é de cada par tecla+ação, não do bloco: o :hover estava no
+   contêiner e acender um acendia a fileira inteira. */
+.keycaps > span {
+  display: inline-flex; align-items: center; gap: 7px;
+  opacity: .68; transition: opacity .25s ease;
+}
+.keycaps > span:hover { opacity: 1 }
 .keycaps kbd {
   font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .06em;
   text-transform: none; color: var(--muted);
@@ -1124,26 +1266,12 @@ body.no-motion .caret { animation: none }
   border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px;
   transition: color .2s, border-color .2s;
 }
-.keycaps:hover kbd { color: var(--text); border-color: var(--border-hi) }
-
-/* ---------- Menu: cada item com sua seta ---------- */
-.homelinks { gap: 14px 26px }
-.homelinks .linkbtn {
-  position: relative; padding-left: 17px;
-  transition: color .18s, transform .18s;
-}
-.homelinks .linkbtn::before {
-  content: "\25B8"; position: absolute; left: 2px; top: 50%;
-  transform: translate(-6px, -50%); color: var(--accent);
-  opacity: 0; transition: opacity .18s, transform .18s;
-}
-.homelinks .linkbtn:hover, .homelinks .linkbtn:focus-visible { color: var(--text); transform: translateX(3px) }
-.homelinks .linkbtn:hover::before, .homelinks .linkbtn:focus-visible::before { opacity: 1; transform: translate(0, -50%) }
+.keycaps > span:hover kbd { color: var(--text); border-color: var(--border-hi) }
 
 /* ---------- Botões que reagem ---------- */
 /* Três camadas de resposta, em ordem de intensidade: um brilho que atravessa
    no hover, um respingo no ponto do dedo, e o afundar no clique. */
-.btn, .chip, .seg, .switch, .iconbtn, .capbtn, .setupline, .opttab, .gearbtn {
+.btn, .chip, .seg, .switch, .iconbtn, .capbtn, .opttab, .gearbtn {
   position: relative; overflow: hidden;
 }
 .btn::after {
@@ -1178,33 +1306,30 @@ body.no-motion .caret { animation: none }
 @keyframes ripOut { to { transform: scale(1); opacity: 0 } }
 
 /* Anel no ponto do clique, mesmo fora dos botões. */
+/* O clique abre um estouro macio de luz, do mesmo material do halo — um anel
+   de contorno duro destoava de tudo o mais nesta tela. */
 .clickburst {
   position: fixed; z-index: 9996; pointer-events: none;
-  width: 58px; height: 58px; margin: -29px 0 0 -29px;
-  border: 1.5px solid var(--accent); border-radius: 50%;
-  transform: scale(.14); opacity: .9;
-  animation: burstOut .5s cubic-bezier(.2,.8,.3,1) forwards;
+  width: 200px; height: 200px; margin: -100px 0 0 -100px; border-radius: 50%;
+  mix-blend-mode: var(--cursor-blend, screen);
+  background: radial-gradient(circle closest-side,
+              var(--cursor-glow, rgba(255,138,61,0.32)) 0%, transparent 70%);
+  transform: scale(.25); opacity: .95;
+  animation: burstOut .75s cubic-bezier(.2,.8,.3,1) forwards;
 }
-.clickburst.forte { border-color: var(--letter-next); box-shadow: 0 0 22px var(--word-glow) }
-@keyframes burstOut { to { transform: scale(1); opacity: 0 } }
+.clickburst.forte { width: 280px; height: 280px; margin: -140px 0 0 -140px }
+@keyframes burstOut { to { transform: scale(1.5); opacity: 0 } }
 
-/* ---------- A ação primária ---------- */
-/* Um anel que pulsa por cima do botão: chama o olho sem mexer no botão em si,
-   então nada disso briga com o hover nem com o afundar do clique. */
-.btn.cta { border-radius: 16px; letter-spacing: .1em }
-.btn.cta .ctatext { display: inline-flex; align-items: center; gap: 12px; min-width: 0 }
-.btn.cta .ctatext::before {
-  content: "\25B6"; font-size: .78em; opacity: .7; flex: none;
-  transition: transform .25s cubic-bezier(.2,.9,.3,1.4), opacity .25s;
-}
-.btn.cta:hover .ctatext::before { transform: translateX(4px); opacity: 1 }
+/* ---------- O anel da pastilha ---------- */
+/* Pulsa por cima do botão de começar: chama o olho sem mexer no botão em si,
+   então não briga com o hover nem com o afundar do clique. */
 .btn.cta::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit;
-  border: 1px solid var(--letter-next); opacity: 0; pointer-events: none;
+  border: 1px solid var(--accent); opacity: 0; pointer-events: none;
   animation: ctaRing 3.2s ease-in-out infinite;
 }
 .btn.cta[disabled]::before { animation: none; opacity: 0 }
-@keyframes ctaRing { 0%, 100% { opacity: 0 } 50% { opacity: .45 } }
+@keyframes ctaRing { 0%, 100% { opacity: 0 } 50% { opacity: .5 } }
 
 /* ---------- Painéis que abrem ---------- */
 .overlay::before, .overlay::after {
@@ -1250,7 +1375,7 @@ body.tc-cursor input, body.tc-cursor textarea,
 body.tc-cursor [contenteditable="true"] { cursor: text !important }
 body.tc-cursor select { cursor: pointer !important }
 
-#curArrow, #curTrail {
+#curArrow, #curGlow {
   position: fixed; left: 0; top: 0; z-index: 9998;
   pointer-events: none; will-change: transform;
 }
@@ -1277,20 +1402,36 @@ body.tc-cursor select { cursor: pointer !important }
 #curArrow.over svg { transform: scale(1.14) }
 #curArrow.over path { fill: var(--accent); stroke: var(--letter-next) }
 #curArrow.down svg { transform: scale(.88) }
-#curArrow.text, #curTrail.text { opacity: 0 }
+#curArrow.text { opacity: 0 }
 
-/* O rastro: contas da cor do tema que perseguem a seta e afinam para trás.
-   O JS apaga o conjunto inteiro quando a mão para — parado não há rastro. */
-#curTrail { width: 0; height: 0; transition: opacity .25s ease }
-#curTrail i {
-  position: absolute; left: 0; top: 0; display: block; border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--word-glow);
-  transform-origin: 0 50%;                   /* o eixo é a ponta de trás */
-  will-change: transform;
+/* A luz que a seta carrega. Ela não é um círculo desenhado por cima: a mistura
+   (screen nos climas escuros, multiply no claro — cada clima escolhe a sua em
+   themes.css) faz a luz reagir ao que está embaixo, então passar por cima de um
+   texto acende o texto, e passar pelo vazio quase não aparece.
+
+   Só transform muda a cada quadro; tamanho, cor e mistura ficam parados. É o
+   que mantém o halo no compositor, sem recalcular layout nenhum. */
+#curGlow {
+  width: 340px; height: 340px; border-radius: 50%;
+  z-index: 9997; opacity: .9;
+  mix-blend-mode: var(--cursor-blend, screen);
+  background: radial-gradient(circle closest-side,
+              var(--cursor-glow, rgba(255,138,61,0.32)) 0%,
+              transparent 72%);
+  transition: opacity .45s ease;
 }
+/* Sobre um controle a luz acende; no apertar, acende mais ainda. O tamanho é
+   com o JS, que já governa a mola do transform. */
+#curGlow.over { opacity: 1 }
+#curGlow.down { opacity: 1 }
 
-body.cur-out #curArrow, body.cur-out #curTrail { opacity: 0 }
+/* Na partida ela quase some. O palco é vazio de propósito: não há nada para a
+   luz acender, então ela deixa de ser luz e vira um borrão competindo com as
+   palavras que descem — e é nelas que os olhos têm de estar. */
+body.is-playing #curGlow { opacity: .22 }
+body.is-playing #curGlow.over { opacity: .5 }
+
+body.cur-out #curArrow, body.cur-out #curGlow { opacity: 0 }
 
 /* ---------- Quem pediu menos movimento ---------- */
 body.no-motion .btn.cta::before { animation: none; opacity: 0 }
@@ -1312,39 +1453,8 @@ body.no-motion .is-press { transform: none !important }
 /* Nada de mira nem de brilho de hover: no toque não existe "passar por cima",
    e o que sobra é um efeito que nunca dispara gastando bateria. */
 @media (pointer: coarse) {
-  #curArrow, #curTrail { display: none }
+  #curArrow, #curGlow { display: none }
   .btn::after { display: none }
   .keycaps { display: none }
 }
 
-@media (max-width: 899px) {
-  /* Numa coluna só, o placar vem depois da ação, nunca antes dela. */
-  .homerail { order: 2 }
-  .homerail .goal { margin-top: 16px }
-}
-
-/* Sem placar (jogador novo), a segunda coluna vira uma faixa morta à direita
-   e a apresentação fica torta na tela. Onde :has existe a grade fecha; onde
-   não existe, sobra o espaço de antes — nada quebra. */
-.homegrid:has(> .homerail[hidden]) { grid-template-columns: minmax(0, 1fr) }
-@media (min-width: 900px) {
-  .homegrid:has(> .homerail[hidden]) { grid-template-columns: minmax(0, 1fr) }
-  .homegrid:has(> .homerail[hidden]) .homemain { max-width: 720px }
-}
-
-/* A linha de ajustes ganha um marcador à esquerda no hover: o mesmo idioma
-   dos itens do menu, para as duas coisas responderem igual. */
-.setupline::before {
-  content: ""; position: absolute; left: 0; top: 12%; bottom: 12%; width: 2px;
-  background: var(--accent); border-radius: 2px;
-  transform: scaleY(0); transform-origin: center;
-  transition: transform .2s cubic-bezier(.2,.9,.3,1.3);
-}
-.setupline:hover::before, .setupline:focus-visible::before { transform: scaleY(1) }
-
-/* No toque a seta do menu nunca aparece, então o recuo que abria espaço para
-   ela só empurrava o texto para dentro. */
-@media (pointer: coarse) {
-  .homelinks .linkbtn { padding-left: 0 }
-  .setupline::before { display: none }
-}

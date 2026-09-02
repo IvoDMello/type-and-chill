@@ -288,8 +288,8 @@ window.TCOptions = (function () {
       "A coluna com as palavras desta partida",
       function () { return p.showCollected; }, function (v) { set("showCollected", v); }));
     box.appendChild(choice("cursor", "Cursor",
-      "A seta com rastro ou a do sistema, sem efeito",
-      [{ value: "game", label: "Com rastro" }, { value: "system", label: "Sistema" }],
+      "A seta com a luz do jogo, ou a do sistema sem efeito",
+      [{ value: "game", label: "Com luz" }, { value: "system", label: "Sistema" }],
       function () { return p.cursor; }, function (v) { set("cursor", v); }));
   }
 

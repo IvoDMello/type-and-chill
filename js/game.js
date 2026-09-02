@@ -152,10 +152,23 @@
     var sel = prefs.levels && prefs.levels.length ? prefs.levels : window.WORD_LEVELS;
     return sel.length >= window.WORD_LEVELS.length ? "A2–C1" : sel.join(" · ");
   }
+  /* Três campos com nome na tela — modo, de onde vêm as palavras e o clima —
+   * e a mesma coisa numa linha corrida, escondida, que é a descrição do botão
+   * "Ajustar" para quem usa leitor de tela. */
   function updateSetupSummary() {
     var v = window.TC_VISUALS[prefs.visual];
+    var fila = isQueueMode();
+    var origem = fila
+      ? (mode === "deck" ? "As que te pegam" : "Fila do caderno")
+      : themeSummary() + " · " + levelSummary();
+
+    el("fieldMode").textContent = MODES[mode].label;
+    el("fieldPoolLabel").textContent = fila ? "Fila" : "Palavras";
+    el("fieldPool").textContent = origem;
+    el("fieldClimate").textContent = v ? v.label : "—";
+
     var partes = [MODES[mode].label];
-    if (isQueueMode()) partes.push(mode === "deck" ? "as que te pegam" : "fila do caderno");
+    if (fila) partes.push(mode === "deck" ? "as que te pegam" : "fila do caderno");
     else { partes.push(themeSummary()); partes.push(levelSummary()); }
     if (v) partes.push(v.label);
     el("setupSummary").textContent = partes.join(" · ");
@@ -1149,6 +1162,25 @@
    * quem já tem caderno quer saber o que fazer hoje. Antes os dois viam
    * exatamente a mesma coisa. */
   var howOpen = false;
+
+  /* Um número do placar lateral, com o zero apagado. */
+  function railStat(id, valor) {
+    var b = el(id);
+    b.textContent = valor;
+    b.parentNode.classList.toggle("is-zero", !valor);
+  }
+
+  /* A última palavra da frase sai em itálico e mais apagada — é o que separa
+   * "90 palavras pra revisar" de "hoje", que é a parte que muda todo dia. */
+  function setPhrase(node, txt) {
+    var corte = txt.lastIndexOf(" ");
+    if (corte < 0) { node.textContent = txt; return; }
+    node.textContent = txt.slice(0, corte + 1);
+    var em = document.createElement("em");
+    em.textContent = txt.slice(corte + 1);
+    node.appendChild(em);
+  }
+
   function refreshHeader() {
     var c = TCStore.counts();
     var g = TCStore.goalProgress();
@@ -1156,10 +1188,11 @@
     el("homeBest").textContent = stats.best;
     el("homeMastered").textContent = c.mastered;
 
-    // o mesmo placar, agora também no painel lateral da tela inicial
-    el("railBest").textContent = stats.best;
-    el("railMastered").textContent = c.mastered;
-    el("railTotal").textContent = c.total;
+    // o mesmo placar, agora também na coluna da direita da tela inicial.
+    // O que está em zero fica apagado: ali é uma meta, não uma conquista.
+    railStat("railBest", stats.best);
+    railStat("railMastered", c.mastered);
+    railStat("railTotal", c.total);
 
     var streak = stats.streak || 0;
     var frozen = TCStore.streakFrozenToday();
@@ -1194,9 +1227,10 @@
       txt = "palavras no caderno · nada vencendo hoje";
     }
     el("homeDue").textContent = num;
-    el("vetHead").textContent = txt;
+    setPhrase(el("vetHead"), txt);
 
     el("goalFill").style.width = (g.ratio * 100) + "%";
+    el("goalCount").textContent = g.done + " / " + g.goal;
     el("goalText").textContent = g.done >= g.goal
       ? "Meta do dia batida ✦ · " + g.done + " palavras hoje"
       : g.done + " de " + g.goal + " palavras hoje";

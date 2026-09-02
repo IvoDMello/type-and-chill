@@ -1,8 +1,9 @@
 /* Type & Chill — a camada que faz o menu parecer um jogo.
  *
  * Três coisas, todas puramente decorativas: um cursor próprio (a seta de
- * sempre, desenhada por nós, deixando um rastro leve da cor do tema), som ao
- * passar e ao clicar nos controles, e um respingo de luz no ponto do clique.
+ * sempre, desenhada por nós, carregando uma luz macia que acende o que está
+ * embaixo), som ao passar e ao clicar nos controles, e um respingo de luz no
+ * ponto do clique.
  *
  * Regras que valem para o arquivo inteiro:
  *   - nada aqui pode impedir um clique de chegar ao seu handler. Todos os
@@ -17,35 +18,28 @@ window.TCUiFx = (function () {
 
   /* Tudo que responde ao ponteiro e portanto merece som e realce. */
   var CTRL = 'button, .chip, .seg, .switch, .opttab, .capbtn, .minibtn,' +
-             ' .linkbtn, .gearbtn, .iconbtn, .setupline, [role="button"], a[href]';
+             ' .linkbtn, .gearbtn, .iconbtn, [role="button"], a[href]';
   var FIELD = 'input, textarea, select, [contenteditable="true"]';
   /* O respingo precisa de uma caixa para acontecer dentro. Num botão de texto
    * puro ele viraria uma mancha solta no meio do parágrafo. */
-  var CAIXA = '.btn, .chip, .seg, .switch, .iconbtn, .capbtn, .setupline, .opttab, .gearbtn';
+  var CAIXA = '.btn, .chip, .seg, .switch, .iconbtn, .capbtn, .opttab, .gearbtn';
 
   /* Botões que fecham ou voltam ganham o som descendente. O resto sobe. */
   var VOLTAR = /^(setupClose|optClose|tutClose|capBack|nbClose|chClose|capClose|capToList|homeBtn|resumeBtn)$/;
 
   var cursorOn = false, sndOn = true, touch = false;
-  var seta = null, rastro = null, pontos = [], raf = 0;
-  var mx = -100, my = -100, px = -100, py = -100, vel = 0, seen = false;
+  var seta = null, halo = null, raf = 0;
+  var mx = -100, my = -100, seen = false;
 
-  /* O rastro é a trilha que o ponteiro acabou de percorrer, guardada quadro a
-   * quadro. Cada GOMO é um risquinho ligando duas posições seguidas — bolinhas
-   * soltas viravam um pontilhado quando a mão corria, porque entre um quadro e
-   * outro o ponteiro anda dezenas de pixels. Ligando as posições, o rastro sai
-   * contínuo em qualquer velocidade.
+  /* O halo: uma luz macia que anda com a mão e acende de verdade o que está
+   * embaixo dela (a mistura vem do clima, em themes.css). Ele arrasta atrás do
+   * ponteiro, respira devagar e fecha quando encontra um controle.
    *
-   * 16 gomos = 16 quadros ≈ um quarto de segundo de cauda: rastro leve, não
-   * cometa. Precisamos de um quadro a mais que gomos para fechar o último. */
-  var GOMOS = 16;
-  var TRILHA = GOMOS + 2;
-  var hx = new Float32Array(TRILHA), hy = new Float32Array(TRILHA), hn = 0;
-
-  /* Comprimento de referência do gomo. Ele nunca muda de largura: o que muda é
-   * o scaleX do transform, e assim o rastro inteiro é redesenhado sem custar
-   * um único cálculo de layout por quadro. */
-  var GOMO = 60;
+   * ARRASTO é o quanto ele alcança o ponteiro por quadro — quanto menor, mais
+   * preguiçoso. FOCO é o tamanho dele sobre um botão: menor que 1, porque
+   * mirar é fechar o facho, não abri-lo. */
+  var ARRASTO = 0.085, FOCO = 0.72;
+  var hx = -200, hy = -200, esc = 1, escAlvo = 1, resp = 0;
 
   function prefs() {
     try { return (window.TCStore && TCStore.prefs) || {}; } catch (e) { return {}; }
@@ -125,25 +119,12 @@ window.TCUiFx = (function () {
 
   // ---------- Cursor ----------
   /* A mesma seta de sempre, só que desenhada por nós — a forma continua a que
-   * todo mundo já sabe apontar. O que muda é o rastro: umas contas da cor do
-   * tema que ficam para trás enquanto a mão anda. */
+   * todo mundo já sabe apontar —, com uma luz macia andando junto. */
   function montarCursor() {
     if (seta) return;
 
-    rastro = document.createElement("div");
-    rastro.id = "curTrail";
-    for (var i = 0; i < GOMOS; i++) {
-      var c = document.createElement("i");
-      // os de trás são mais finos e mais apagados: é o que faz a cauda afinar
-      var t = 1 - i / GOMOS;
-      var esp = 1 + t * 4;
-      c.style.width = GOMO + "px";
-      c.style.height = esp.toFixed(2) + "px";
-      c.style.marginTop = (-esp / 2).toFixed(2) + "px";   // o eixo no meio
-      c.style.opacity = (0.03 + t * 0.24).toFixed(3);
-      rastro.appendChild(c);
-      pontos.push(c);
-    }
+    halo = document.createElement("div");
+    halo.id = "curGlow";
 
     seta = document.createElement("div");
     seta.id = "curArrow";
@@ -152,48 +133,32 @@ window.TCUiFx = (function () {
       '<path d="M4 2.4 L4 19.6 L8.35 15.5 L11.1 21.7 L14.2 20.3 L11.5 14.3 L17.3 13.9 Z"/>' +
       '</svg>';
 
-    document.body.appendChild(rastro);
+    document.body.appendChild(halo);
     document.body.appendChild(seta);
   }
 
-  /* A seta gruda no ponteiro, sem atraso nenhum: um cursor que chega depois
-   * da mão é um cursor quebrado. O rastro é a única coisa que fica para trás.
+  /* A seta gruda no ponteiro, sem atraso nenhum: um cursor que chega depois da
+   * mão é um cursor quebrado. Quem se atrasa é só a luz, e é o atraso que a faz
+   * parecer uma coisa que a mão carrega em vez de um adesivo colado no cursor.
    *
-   * Cada conta ocupa uma posição por onde o ponteiro passou de verdade, alguns
-   * quadros atrás — por isso o rastro desenha a curva da mão em vez de cortar
-   * caminho, que é o que uma perseguição por mola faria.
-   *
-   * E ele some quando a mão para: parado, todas as posições guardadas são a
-   * mesma, e sem o desaparecer o rastro viraria uma bolinha sob a seta. */
+   * A respiração é o que evita o pior defeito de um halo: parado, ele viraria
+   * um círculo morto embaixo da seta. Respirando, a tela continua viva mesmo
+   * com ninguém mexendo em nada. */
   function loop() {
-    var dx = mx - px, dy = my - py;
-    px = mx; py = my;
-
-    // média corrida da velocidade: sobe rápido, desce devagar
-    var agora = Math.sqrt(dx * dx + dy * dy);
-    vel += (agora - vel) * (agora > vel ? 0.5 : 0.08);
-
     // hotspot da seta é a ponta, em 4,2.4 de um ícone de 24 desenhado a 22
     seta.style.transform = "translate3d(" + (mx - 3.7) + "px," + (my - 2.2) + "px,0)";
 
-    hn = (hn + 1) % TRILHA;
-    hx[hn] = mx; hy[hn] = my;
-
     if (reduced()) {
-      rastro.style.opacity = "0";
+      halo.style.transform = "translate3d(" + mx + "px," + my + "px,0) translate(-50%,-50%)";
     } else {
-      rastro.style.opacity = Math.min(1, vel / 7).toFixed(3);
-      for (var i = 0; i < pontos.length; i++) {
-        // o gomo nasce na posição mais velha e se estica até a mais nova
-        var nova = (hn - i + TRILHA) % TRILHA;
-        var velha = (hn - i - 1 + TRILHA) % TRILHA;
-        var gx = hx[nova] - hx[velha], gy = hy[nova] - hy[velha];
-        var comp = Math.sqrt(gx * gx + gy * gy);
-        pontos[i].style.transform =
-          "translate3d(" + hx[velha] + "px," + hy[velha] + "px,0)" +
-          " rotate(" + Math.atan2(gy, gx).toFixed(4) + "rad)" +
-          " scaleX(" + (comp / GOMO).toFixed(4) + ")";
-      }
+      hx += (mx - hx) * ARRASTO;
+      hy += (my - hy) * ARRASTO;
+      esc += (escAlvo - esc) * 0.09;
+      resp += 0.011;                                  // uma respirada a cada ~9 s
+      var s = esc * (1 + Math.sin(resp) * 0.05);
+      halo.style.transform =
+        "translate3d(" + hx.toFixed(1) + "px," + hy.toFixed(1) + "px,0)" +
+        " translate(-50%,-50%) scale(" + s.toFixed(3) + ")";
     }
     raf = requestAnimationFrame(loop);
   }
@@ -212,15 +177,17 @@ window.TCUiFx = (function () {
     return cursorOn;
   }
 
-  /* Sobre um campo de texto a seta sai de cena e o cursor do sistema volta:
-   * o I do texto diz onde a letra vai cair, e isso nenhum desenho nosso
-   * faria melhor. */
+  /* Sobre um controle a luz fecha e acende; sobre um campo de texto a seta sai
+   * de cena e o cursor do sistema volta — o I do texto diz onde a letra vai
+   * cair, e isso nenhum desenho nosso faria melhor. A luz fica: ela é
+   * ambiente, não ponteiro. */
   function estado(node) {
     if (!cursorOn || !node || !node.closest) return;
-    seta.classList.toggle("over", !!node.closest(CTRL));
-    var campo = !!node.closest(FIELD);
-    seta.classList.toggle("text", campo);
-    rastro.classList.toggle("text", campo);
+    var sobre = !!node.closest(CTRL);
+    seta.classList.toggle("over", sobre);
+    halo.classList.toggle("over", sobre);
+    escAlvo = sobre ? FOCO : 1;
+    seta.classList.toggle("text", !!node.closest(FIELD));
   }
 
   // ---------- Ligação com a página ----------
@@ -231,10 +198,9 @@ window.TCUiFx = (function () {
       if (e.pointerType === "touch") return;
       mx = e.clientX; my = e.clientY;
       if (!seen) {
-        /* Primeiro movimento: a seta entra em cena. A trilha inteira nasce
-         * neste ponto, senão as contas vêm voando do canto da tela. */
-        seen = true; px = mx; py = my;
-        hx.fill(mx); hy.fill(my);
+        /* Primeiro movimento: a seta entra em cena. A luz nasce já no ponto
+         * certo, senão ela vem atravessando a tela desde o canto. */
+        seen = true; hx = mx; hy = my;
         if (cursorOn) document.body.classList.add("tc-cursor");
       }
       estado(e.target);
@@ -264,7 +230,11 @@ window.TCUiFx = (function () {
     document.addEventListener("pointerdown", function (e) {
       armAudio();
       var node = e.target.closest && e.target.closest(CTRL);
-      if (cursorOn) seta.classList.add("down");
+      if (cursorOn) {
+        seta.classList.add("down");
+        halo.classList.add("down");
+        esc = 1.45;            // estoura na hora e volta pela mola do loop
+      }
       burst(e.clientX, e.clientY, !!node);
       if (!node) return;
       node.classList.add("is-press");
@@ -273,7 +243,7 @@ window.TCUiFx = (function () {
     }, { passive: true });
 
     function soltar() {
-      if (cursorOn) seta.classList.remove("down");
+      if (cursorOn) { seta.classList.remove("down"); halo.classList.remove("down"); }
       var presos = document.querySelectorAll(".is-press");
       for (var i = 0; i < presos.length; i++) presos[i].classList.remove("is-press");
     }

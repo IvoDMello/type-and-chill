@@ -277,7 +277,7 @@ Type & Chill/
 │   ├── storage.js        → preferências, caderno, ofensiva, histórico e placares
 │   ├── themes.js         → climas: paleta, fundo animado e clima sonoro
 │   ├── audio.js          → a trilha ambiente generativa + efeitos
-│   ├── ui-fx.js          → cursor com rastro, som e respingo nos botões
+│   ├── ui-fx.js          → cursor com halo, som e respingo nos botões
 │   ├── speech.js         → pronúncia das palavras (Web Speech API)
 │   ├── notebook.js       → a tela do caderno, o gráfico, o CSV e o Anki
 │   ├── options.js        → o menu da engrenagem (áudio, gráficos, exibição, dados)

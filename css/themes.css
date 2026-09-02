@@ -45,6 +45,8 @@ html[data-visual="ember"] {
   --btn-b: #ff6a3d;
   --btn-fg: #1a0705;
   --btn-glow: rgba(255,106,61,0.38);
+  --cursor-glow: rgba(255,138,61,0.34);
+  --cursor-blend: screen;
 }
 
 /* ---------- Noite lo-fi: roxo e azul, poeira caindo ---------- */
@@ -79,6 +81,8 @@ html[data-visual="lofi"] {
   --btn-b: #8b5cf6;
   --btn-fg: #140e26;
   --btn-glow: rgba(139,92,246,0.40);
+  --cursor-glow: rgba(167,139,250,0.32);
+  --cursor-blend: screen;
 }
 
 /* ---------- Chuva: azul frio, gotas descendo ---------- */
@@ -113,6 +117,8 @@ html[data-visual="rain"] {
   --btn-b: #22b8d4;
   --btn-fg: #04141d;
   --btn-glow: rgba(34,184,212,0.38);
+  --cursor-glow: rgba(103,232,249,0.28);
+  --cursor-blend: screen;
 }
 
 /* ---------- Manhã: claro, para jogar de dia sem cansar a vista ---------- */
@@ -147,6 +153,8 @@ html[data-visual="dawn"] {
   --btn-b: #c8543a;
   --btn-fg: #fff6f0;
   --btn-glow: rgba(200,84,58,0.30);
+  --cursor-glow: rgba(209,96,63,0.15);
+  --cursor-blend: multiply;
 }
 
 /* ---------- Aurora: verde-azulado frio, o clima que abre por último ---------- */
@@ -181,4 +189,6 @@ html[data-visual="aurora"] {
   --btn-b: #14b8a6;
   --btn-fg: #032420;
   --btn-glow: rgba(20,184,166,0.38);
+  --cursor-glow: rgba(94,234,212,0.28);
+  --cursor-blend: screen;
 }

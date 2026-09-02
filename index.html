@@ -72,11 +72,31 @@
   <!-- Início -->
   <div class="overlay overlay-home" id="startScreen">
     <div class="card card-home">
+      <!-- Barra do topo: marca, navegação e o estado do jogador. Em tela
+           estreita a navegação quebra para a linha de baixo, dentro da mesma
+           barra — duplicá-la no rodapé duplicaria os ids dos botões. -->
       <header class="homebar">
         <span class="wordmark">Type <span class="dot">&amp;</span> Chill</span>
+
+        <nav class="homelinks">
+          <button type="button" class="linkbtn" id="campaignBtn" data-snd="open">Campanha</button>
+          <button type="button" class="linkbtn" id="notebookBtn2" data-snd="open">Meu caderno</button>
+          <button type="button" class="linkbtn" id="tutorialBtn" data-snd="open">Como estudar</button>
+          <button type="button" class="linkbtn" id="challengeBtn" data-snd="open">Jogar com amigos</button>
+          <button type="button" class="linkbtn" id="howBtn" aria-expanded="false" aria-controls="howBox">Como jogar</button>
+          <button type="button" class="linkbtn" id="installBtn" hidden>Instalar o jogo</button>
+        </nav>
+
         <span class="homebarend">
-          <span class="streakline" id="homeStreakBox" hidden><b id="homeStreak">0</b> <span id="streakWord">dias seguidos</span></span>
-          <button type="button" class="gearbtn" id="optionsBtn2" data-snd="open" title="Opções (O)" aria-label="Abrir as opções">⚙</button>
+          <span class="streakline" id="homeStreakBox" hidden>
+            <i class="ember" aria-hidden="true"></i><b id="homeStreak">0</b> <span id="streakWord">dias seguidos</span>
+          </span>
+          <button type="button" class="gearbtn" id="optionsBtn2" data-snd="open" title="Opções (O)" aria-label="Abrir as opções">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2"></circle>
+              <path d="M12 2.6v3M12 18.4v3M2.6 12h3M18.4 12h3M5.4 5.4l2.1 2.1M16.5 16.5l2.1 2.1M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1"></path>
+            </svg>
+          </button>
         </span>
       </header>
 
@@ -91,59 +111,78 @@
             <p class="lead">Palavras em inglês descem devagar. Digite cada uma antes que ela se apague — e o significado se acende.</p>
           </div>
 
-          <!-- Quem já joga precisa saber o que fazer hoje. -->
+          <!-- Quem já joga precisa saber o que fazer hoje. O número e a frase
+               são um título só: um <h2> em duas linhas, não dois blocos. -->
           <div id="homeVet" hidden>
             <div class="kicker">Bom te ver de volta</div>
-            <div class="vetline">
+            <h2 class="vethead">
               <span class="bignum" id="homeDue">0</span>
-              <h2 class="vethead" id="vetHead">palavras pra revisar hoje</h2>
-            </div>
+              <span class="vetphrase" id="vetHead">palavras pra revisar hoje</span>
+            </h2>
           </div>
 
           <p class="warn" id="storageWarn" hidden>Este navegador está bloqueando o armazenamento local: o caderno vale só até fechar a aba.</p>
 
-          <button class="btn cta" id="startBtn">
-            <span class="ctatext"><span id="startLabel">Começar</span></span>
-            <span class="ctakey">Enter</span>
-          </button>
+          <!-- O que a partida é e quanto custa, antes de começá-la. -->
           <div class="ctameta">
             <span id="ctaHint"></span>
+            <i class="rule" aria-hidden="true"></i>
             <span id="poolNote"></span>
           </div>
 
-          <button type="button" class="linkbtn altstart" id="altStartBtn" hidden></button>
-
-          <button type="button" class="setupline" id="setupBtn" data-snd="open">
-            <span class="setupsum" id="setupSummary"></span>
-            <span class="setupkey">Ajustar · A</span>
+          <button class="btn cta" id="startBtn">
+            <span class="ctaplay" aria-hidden="true">
+              <svg viewBox="0 0 12 14" fill="currentColor"><path d="M0 0l12 7-12 7z"></path></svg>
+            </span>
+            <span class="ctatext"><span id="startLabel">Começar</span></span>
+            <span class="ctakey">Enter</span>
           </button>
+
+          <!-- A outra partida possível de um lado, o caminho para os ajustes
+               do outro, com a linha ligando as duas pontas. -->
+          <div class="setuprow">
+            <button type="button" class="linkbtn altstart" id="altStartBtn" hidden></button>
+            <i class="rule" aria-hidden="true"></i>
+            <button type="button" class="linkbtn setupopen" id="setupBtn" data-snd="open"
+                    aria-describedby="setupSummary">Ajustar · A</button>
+          </div>
+
+          <!-- O que estava numa linha corrida agora são três colunas com nome.
+               O resumo em texto continua existindo para quem usa leitor de
+               tela — é a descrição do botão de ajustes. -->
+          <dl class="setupfields">
+            <div class="setupfield">
+              <dt>Modo</dt><dd id="fieldMode">—</dd>
+            </div>
+            <div class="setupfield">
+              <dt id="fieldPoolLabel">Palavras</dt><dd id="fieldPool">—</dd>
+            </div>
+            <div class="setupfield">
+              <dt>Clima</dt><dd id="fieldClimate">—</dd>
+            </div>
+          </dl>
+          <span class="sr-only" id="setupSummary"></span>
         </div>
 
         <!-- Placar do jogador. Só para quem já tem caderno: para quem chega
-             agora seriam quatro zeros disputando espaço com a apresentação. -->
+             agora seriam três zeros disputando espaço com a apresentação. -->
         <aside class="homerail" id="homeRail" hidden>
-          <p class="railtitle">Progresso</p>
+          <p class="railtitle">Progresso <i class="rule" aria-hidden="true"></i></p>
           <ul class="railstats">
-            <li><span class="raillabel">Recorde</span><b class="railval" id="railBest">0</b></li>
-            <li><span class="raillabel">Dominadas</span><b class="railval" id="railMastered">0</b></li>
-            <li><span class="raillabel">No caderno</span><b class="railval" id="railTotal">0</b></li>
+            <li class="railrow"><span class="raillabel">Recorde</span><b class="railval" id="railBest">0</b></li>
+            <li class="railrow"><span class="raillabel">Dominadas</span><b class="railval" id="railMastered">0</b></li>
+            <li class="railrow"><span class="raillabel">No caderno</span><b class="railval" id="railTotal">0</b></li>
           </ul>
           <div class="goal">
-            <p class="railtitle">Meta do dia</p>
+            <p class="goalhead">
+              <span class="raillabel">Meta do dia</span>
+              <span class="goalcount" id="goalCount"></span>
+            </p>
             <div class="bartrack"><i class="bardone" id="goalFill"></i></div>
             <p class="goaltext" id="goalText"></p>
           </div>
         </aside>
       </div>
-
-      <nav class="homelinks">
-        <button type="button" class="linkbtn" id="campaignBtn" data-snd="open">Campanha</button>
-        <button type="button" class="linkbtn" id="notebookBtn2" data-snd="open">Meu caderno</button>
-        <button type="button" class="linkbtn" id="tutorialBtn" data-snd="open">Como estudar</button>
-        <button type="button" class="linkbtn" id="challengeBtn" data-snd="open">Jogar com amigos</button>
-        <button type="button" class="linkbtn" id="howBtn" aria-expanded="false" aria-controls="howBox">Como jogar</button>
-        <button type="button" class="linkbtn" id="installBtn" hidden>Instalar o jogo</button>
-      </nav>
 
       <div class="how howgrid" id="howBox">
         <div class="row"><span class="n">01</span><span class="t">Comece a <b>digitar</b> — a palavra mais próxima do fundo é capturada primeiro.</span></div>
@@ -154,14 +193,16 @@
 
       <!-- Os atalhos como teclas desenhadas: numa linha corrida de texto
            ninguém enxergava que "T" e "campanha" eram tecla e ação. -->
-      <div class="hint keycaps" id="homeKeys">
-        <span><kbd>Enter</kbd> começar</span>
-        <span><kbd>T</kbd> campanha</span>
-        <span><kbd>C</kbd> caderno</span>
-        <span><kbd>E</kbd> estudar</span>
-        <span><kbd>A</kbd> ajustes</span>
-        <span><kbd>O</kbd> opções</span>
-      </div>
+      <footer class="homefoot">
+        <div class="hint keycaps" id="homeKeys">
+          <span><kbd>Enter</kbd> começar</span>
+          <span><kbd>T</kbd> campanha</span>
+          <span><kbd>C</kbd> caderno</span>
+          <span><kbd>E</kbd> estudar</span>
+          <span><kbd>A</kbd> ajustes</span>
+          <span><kbd>O</kbd> opções</span>
+        </div>
+      </footer>
     </div>
   </div>
 

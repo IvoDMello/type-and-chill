@@ -72,7 +72,7 @@
         showExample: true,                  // frase de exemplo no cartão da captura
         showCollected: true,                // lista lateral de capturadas
         uiSfx: true,                        // clique e passagem do mouse no menu
-        cursor: "game"                      // game (seta com rastro) · system (o do sistema)
+        cursor: "game"                      // game (seta com luz) · system (o do sistema)
       },
       stats: {
         best: 0, bestZen: 0, bestCombo: 0,
